@@ -3,8 +3,8 @@
 # AUTHOR: Nate Hooven
 # EMAIL: nathan.d.hooven@gmail.com
 # BEGAN: 12 Jan 2026
-# COMPLETED: 
-# LAST MODIFIED: 28 Jan 2026
+# COMPLETED: 29 Jan 2026
+# LAST MODIFIED: 29 Jan 2026
 # R VERSION: 4.4.3
 
 # ______________________________________________________________________________
@@ -76,6 +76,12 @@ site.lookup <- data.frame(
   # integer session ID
   sessionID = 1:41,
   
+  # number of secondary occasions
+  K = c(8, 8, 6, 5, 7,
+        6, 5, 6, 6, 6, 6, 6, 4, 6, 6, 6, 6, 
+        6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 8,
+        6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6),
+  
   # character site name
   SiteName = c(c("2A", "2B", "2C", "3A", "3C"),
                rep(c("1A", "1B", "1C", "2A", "2B", "2C",
@@ -87,7 +93,7 @@ site.lookup <- data.frame(
              rep(1:12,
                  times = 3)),
   
-  # integer year T
+  # integer year YR
   year = c(rep(1, times = 5),
            rep(2, times = 12),
            rep(3, times = 12),
@@ -371,67 +377,109 @@ for (i in 1:41) {
   
 }
 
-#### 01-28-2026
-# This will have to be re-tooled to accommodate individuals through time
-
-
 # ______________________________________________________________________________
 # 6. Reformat MR data ----
 
-# each function will output an n-length data.frame
+# this will result in an array with dimensions [i, max(K), t]
+# we can no longer index everything by session, so the site.lookup will be our friend
 
-# function to extract individuals as a vector
-indiv_vect <- function (x.trap) {
-  
-  # convert to vector
-  x.trap.vector <- as.vector(as.matrix(x.trap))
-  
-  # extract unique individuals as a vector
-  x.mrid <- unique(x.trap.vector)[! unique(x.trap.vector) %in% c("O", "B", "X", "C", "E", NA)]
-  
-  return(x.mrid)
-  
-}
-
-# split for lapply
-mr.data.split <- split(mr.data, mr.data$sessionID)
+# split open CH by MRID x Site
+open.ch.1 <- open.ch %>% mutate(MRID.Site = paste0(MRID, ".", Site))
+open.ch.split <- split(open.ch.1, f = ~ MRID.Site)
 
 # ______________________________________________________________________________
-# 6a. Categorical capture histories ----
+# 6a. Function to find closed CHs from MR data ----
 # ______________________________________________________________________________
 
-# function
-catCH <- function (x) {
+extract_closed_CH <- function (x) {
   
-  # subset trapping histories only
-  x.trap <- x %>% dplyr::select(D1:D8)
+  # this function accepts a list of open CHs split by MRID AND Site
   
-  # extract unique individuals as a vector
-  x.mrid <- indiv_vect(x.trap)
+  # the function will return a matrix of dimension [4, 8] for each indiv
+  # we need this to be easily bindable into an array after the fact
   
-  # how many occasions?
-  K = sum(apply(apply(x.trap, 2, is.na), 2, sum) == 0)
+  # primary occasion column names
+  yr.names <- c("y1", "y2", "y3", "y4")
   
-  # set up matrix
-  x.trap.mat <- matrix(data = NA,
-                       nrow = length(x.mrid),
-                       ncol = K)
+  # loop through all primary occasions, checking whether indiv has a closed CH
+  # pack into a length 4 list
+  indiv.ch <- matrix(NA, nrow = 4, ncol = max(site.lookup$K))
   
-  # loop through MRIDs (i)
-  for (i in 1:length(x.mrid)) {
+  for (i in 1:4) {
     
-    # loop through occasions (K)
-    for (k in 1:K) {
+    # K occasions (must be a 0-8 integer)
+    if (length(site.lookup$K[site.lookup$SiteName == x$Site &
+                             site.lookup$year == i]) > 0) {
       
-      # find which trap (if any) the focal individual was found in [i, k]
-      if (length(which(x.trap[, k] == x.mrid[i])) > 0) {
+      focal.K <- site.lookup$K[site.lookup$SiteName == x$Site &
+                                 site.lookup$year == i]
+      
+    } else {
+      
+      focal.K <- 0
+      
+    }
+    
+    # if the state is 1, 3, or NA, fill the matrix with J + 1
+    # for non-recruited states, the CH won't matter because the lp will be zeroed
+    # for latent states, the animal wasn't captured at all
+    if (x[ , yr.names[i]] %in% c(1, 3, NA)) {
+      
+      # ensure that any extra occasions get NAs, for consistency
+      indiv.ch[i, ] <- cbind(matrix(data = 37, 
+                                    nrow = 1, 
+                                    ncol = focal.K),
+                             matrix(data = NA,
+                                    nrow = 1,
+                                    ncol = max(site.lookup$K) - focal.K))
+      
+      # else, the state is 2 and hare *likely* has a CH
+      # this will not be the case for indivs with imputed states
+      # which I will ensure this handles appropriately
+    } else {
+      
+      # find correct MR data
+      mr.data.focal <- mr.data %>%
         
-        x.trap.mat[i, k] <- which(x.trap[, k] == x.mrid[i])
+        filter(SiteName == x$Site &
+               year == i) %>%
         
-        # if not, add the "not trapped" index (i.e., 37)
+        # keep only the MR data
+        dplyr::select(D1:D8)
+      
+      # extract vector of MRIDs
+      MRID.vec <- unique(as.vector(as.matrix(mr.data.focal)))
+      
+      # is focal indiv in this list?
+      # if so, extract its CH
+      if (x$MRID %in% MRID.vec) {
+        
+        # extract its CH, going by occasion k
+        indiv.ch.vec <- vector()
+        
+        for (k in 1:focal.K) {
+          
+          indiv.ch.vec[k] <- ifelse(length(which(mr.data.focal[, k] == x$MRID)) > 0,
+                                    which(mr.data.focal[, k] == x$MRID),
+                                    37)
+          
+        }
+        
+        # and bind in extra NAs, if needed
+        indiv.ch.vec <- c(indiv.ch.vec, rep(NA, times = max(site.lookup$K) - focal.K))
+        
+        # and add into list as a matrix (row vector)
+        indiv.ch[i, ] <- matrix(indiv.ch.vec, nrow = 1)
+        
+        # else (not trapped) give a J + 1 filled matrix as before
       } else {
         
-        x.trap.mat[i, k] <- nrow(x.trap) + 1
+        indiv.ch[i, ] <- cbind(matrix(data = 37, 
+                                      nrow = 1, 
+                                      ncol = focal.K),
+                               matrix(data = NA,
+                                      nrow = 1,
+                                      ncol = max(site.lookup$K) - focal.K))
         
       }
       
@@ -439,174 +487,167 @@ catCH <- function (x) {
     
   }
   
-  # coerce to data.frame
-  x.trap.df <- as.data.frame(x.trap.mat)
-  
-  return(x.trap.df)
+  # return matrix
+  return(indiv.ch)
   
 }
 
-# use function
-all.catCH <- bind_rows(lapply(mr.data.split, catCH))
-
 # ______________________________________________________________________________
-# 6b. Binary trap response covariate ----
+# 6b. Apply function and bind ----
 # ______________________________________________________________________________
 
-# function
-prev_cap <- function (x) {
+all.indiv.ch <- lapply(open.ch.split, extract_closed_CH)
+
+# bind correctly
+all.indiv.ch.arr <- array(NA, dim = c(length(all.indiv.ch), 
+                                      max(site.lookup$K),
+                                      4))
+
+for (i in 1:length(all.indiv.ch)) {
   
-  # subset trapping histories only
-  x.trap <- x %>% dplyr::select(D1:D8)
+  all.indiv.ch.arr[i , , 1] <- all.indiv.ch[[i]][1, ]
+  all.indiv.ch.arr[i , , 2] <- all.indiv.ch[[i]][2, ]
+  all.indiv.ch.arr[i , , 3] <- all.indiv.ch[[i]][3, ]
+  all.indiv.ch.arr[i , , 4] <- all.indiv.ch[[i]][4, ]
   
-  # extract unique individuals as a vector
-  x.mrid <- indiv_vect(x.trap)
+}
+
+# ______________________________________________________________________________
+# 7. Binary trap response covariate ----
+# ______________________________________________________________________________
+
+# blank array
+prev.cap.arr <- array(NA, dim = c(nrow(all.indiv.ch.arr), 
+                                  max(site.lookup$K),
+                                  4))
+
+# loop through indivs i
+for (i in 1:nrow(all.indiv.ch.arr)) {
   
-  # how many occasions?
-  K = sum(apply(apply(x.trap, 2, is.na), 2, sum) == 0)
-  
-  # extract mr.mat from previous function
-  mr.mat <- catCH(x)
-  
-  # set up matrix
-  prev.cap.mat <- matrix(data = NA,
-                         nrow = length(x.mrid),
-                         ncol = K)
-  
-  # first occasion must be zero
-  prev.cap.mat[ , 1] <- 0
-  
-  # loop through MRIDs (i)
-  for (i in 1:length(x.mrid)) {
+  # loop through primary occasions y
+  for (y in 1:4) {
     
-    # loop through occasions (K)
-    for (k in 2:K) {
+    # if indiv was caught at all
+    if (any(all.indiv.ch.arr[i , , y] %in% 1:36)) {
       
-      # if was captured on ANY previous occasions, add a 1
-      if (any(mr.mat[i, 1:(k - 1)] %in% 1:nrow(x.trap))) {
-        
-        prev.cap.mat[i, k] <- 1
-        
-        # if not, add a 0
-      } else {
-        
-        prev.cap.mat[i, k] <- 0
-        
-      }
+      first.cap.index <- which(all.indiv.ch.arr[i , , y] != 37)[1]
+      
+      # create a binary vector
+      prev.cap.vec <- c(rep(0, times = first.cap.index - 1),
+                        rep(1, times = max(site.lookup$K) - (first.cap.index - 1)))
+      
+      # add NAs
+      prev.cap.vec[which(is.na(all.indiv.ch.arr[i , , y]))] <- NA
+      
+      # bind in
+      prev.cap.arr[i, , y] <- prev.cap.vec
+      
+      # else indiv not caught, all NAs
+    } else {
+      
+      prev.cap.arr[i, , y] <- rep(NA, times = max(site.lookup$K))
       
     }
     
   }
   
-  # coerce to data.frame
-  prev.cap.df <- as.data.frame(prev.cap.mat)
-  
-  return(prev.cap.df)
-  
 }
 
-# use function
-all.prev.cap <- bind_rows(lapply(mr.data.split, prev_cap))
-
 # ______________________________________________________________________________
-# 6c. Individual indices and covariates ----
+# 8. Individual indices and covariates ----
 
 # these will be sessionID, siteID, clusterID, treatment, year (for the session)
 # and sex (for the individual)
 
-# ______________________________________________________________________________
-
-indiv_covs <- function (x) {
-  
-  # subset trapping histories only
-  x.trap <- x %>% dplyr::select(D1:D8)
-  
-  # correct cluster
-  clusterID = case_when(x$siteID[1] %in% c(1:3) ~ 1,
-                        x$siteID[1] %in% c(4:6) ~ 2,
-                        x$siteID[1] %in% c(7:9) ~ 3,
-                        x$siteID[1] %in% c(10:12) ~ 4)
-  
-  # extract unique individuals as a vector
-  x.mrid <- indiv_vect(x.trap)
-  
-  # extract correct sex
-  # extract correct indices
-  focal.indices <- site.lookup %>% filter(sessionID == x$sessionID[1])
-  
-  # keep correct column (based on primary occasion)
-  if (focal.indices$year == 1) {open.ch.1 <- open.ch[ , c(1:3, 4)]}
-  if (focal.indices$year == 2) {open.ch.1 <- open.ch[ , c(1:3, 5)]}
-  if (focal.indices$year == 3) {open.ch.1 <- open.ch[ , c(1:3, 6)]}
-  if (focal.indices$year == 4) {open.ch.1 <- open.ch[ , c(1:3, 7)]}
-  
-  # change name to "y" for generality
-  names(open.ch.1)[4] <- "y"
-  
-  # focal indivs
-  focal.indivs <- open.ch.1[which(open.ch.1$y == focal.indices$SiteName), ] %>%
-    
-    dplyr::select(MRID, Sex)
-  
-  # new df, join in (must be in the same order as CHs, prev. cap, etc)
-  indiv.covs <- data.frame(
-    
-    "MRID" = x.mrid
-    
-  ) %>%
-    
-    left_join(focal.indivs) %>%
-    
-    # add site indices
-    mutate(
-      
-      sessionID = x$sessionID[1],
-      siteID = x$siteID[1],
-      clusterID = clusterID,
-      ret = ifelse(x$trt[1] == "ret", 1, 0),
-      pil = ifelse(x$trt[1] == "pil", 1, 0),
-      year = x$year[1]
-      
-    ) %>%
-    
-    mutate(
-      
-      # add a unique indivID
-      indivID = paste0(MRID, "_", sessionID),
-      
-      # change Sex to binary (with NAs)
-      Sex = case_when(
-        
-        Sex == "F" ~ 0,
-        Sex == "M" ~ 1,
-        Sex == "U" ~ NA
-        
-      )
-      
-    )
-  
-  return(indiv.covs)
-  
-}
-
-# use function
-all.indivs.covs <- bind_rows(lapply(mr.data.split, indiv_covs))
-
-# add integer indivID
-all.indivs.covs$indivID.1 <- 1:nrow(all.indivs.covs)
+# we need these to be perfectly aligned to the individuals in the previous 2 arrays
 
 # ______________________________________________________________________________
-# 6d. Write to file ----
+
+# sort open.ch.1 based upon the list order
+identical(names(open.ch.split), sort(open.ch.1$MRID.Site))
+
+# we just need to arrange open.ch.1 in ascending order
+open.ch.2 <- open.ch.1[order(open.ch.1$MRID.Site), ]
+
+identical(names(open.ch.split), open.ch.2$MRID.Site)
+
+# now we can just tack on covariate values in that order
+# this will end up being a list of each covariate
+# each matrix will be [i] or [i, YR]
+
+# ______________________________________________________________________________
+# 8a. siteID ----
 # ______________________________________________________________________________
 
-write.csv(all.catCH, "Data for model/ch.csv", row.names = F)
-write.csv(all.prev.cap, "Data for model/prev_cap.csv", row.names = F)
-write.csv(all.indivs.covs, "Data for model/indivs_covs.csv", row.names = F)
+# as integer
+site.to.int <- left_join(data.frame("SiteName" = open.ch.2$Site),
+                         site.lookup[6:17 , c("SiteName", "siteID")])
+
+# should be the same site per year
+cov.site <- site.to.int$siteID
 
 # ______________________________________________________________________________
-# 7. Trap operation matrix ----
+# 8b. clusterID ----
+# ______________________________________________________________________________
 
-# J x K matrix
+# as integer
+cov.cluster <- case_when(site.to.int$siteID %in% c(1:3) ~ 1,
+                         site.to.int$siteID %in% c(4:6) ~ 2,
+                         site.to.int$siteID %in% c(7:9) ~ 3,
+                         site.to.int$siteID %in% c(10:12) ~ 4)
+
+# ______________________________________________________________________________
+# 8c. Treatment ----
+
+# varies by year
+
+# ______________________________________________________________________________
+
+cov.ret <- matrix(NA, nrow = nrow(open.ch.2), ncol = 4)
+cov.pil <- matrix(NA, nrow = nrow(open.ch.2), ncol = 4)
+
+# add zeroes for pre-treatment
+cov.ret[ , c(1:2)] <- 0
+cov.pil[ , c(1:2)] <- 0
+
+# post
+cov.ret[which(cov.site[ , 1] %in% c(1, 5, 8, 10)), c(3:4)] <- 1
+cov.ret[which(cov.site[ , 1] %notin% c(1, 5, 8, 10)), c(3:4)] <- 0
+
+cov.pil[which(cov.site[ , 1] %in% c(2, 4, 7, 11)), c(3:4)] <- 1
+cov.pil[which(cov.site[ , 1] %notin% c(2, 4, 7, 11)), c(3:4)] <- 0
+
+# ______________________________________________________________________________
+# 8d. Sex ----
+
+# this must be binary (F == 0, M == 1) with NAs for anything latent
+
+# ______________________________________________________________________________
+
+cov.sex <- case_when(open.ch.2$Sex == "F" ~ 0,
+                     open.ch.2$Sex == "M" ~ 1,
+                     open.ch.2$Sex == "U" ~ NA)
+
+# ______________________________________________________________________________
+# 8e. indivID ----
+
+# this will be helpful to have as just an index
+
+# ______________________________________________________________________________
+
+cov.indivID <- 1:nrow(open.ch.2)
+
+# ______________________________________________________________________________
+# 8f. Bind into a list ----
+# ______________________________________________________________________________
+
+indiv.covs <- list(cov.site, cov.cluster, cov.ret, cov.pil, cov.sex, cov.indivID)
+
+# ______________________________________________________________________________
+# 9. Trap operation matrices ----
+
+# n.site matrices
+# J x K x YR array
 # The values in here will be multiplied within the model to allow for or "zero out"
 # trap-specific capture probabilities
 # Cheekily, I will include 0.5 as a possible value to encode our uncertainty about
@@ -626,54 +667,95 @@ write.csv(all.indivs.covs, "Data for model/indivs_covs.csv", row.names = F)
 
 # ______________________________________________________________________________
 
-# function
-make_trap_op <- function (x) {
+trap.op.list <- list()
+
+# loop through site
+for (i in 1:12) {
   
-  # subset trapping histories only
-  x.trap <- x %>% dplyr::select(D1:D8)
+  trap.op.array <- array(data = NA, dim = c(36, max(site.lookup$K), 4))
   
-  # how many occasions?
-  K = sum(apply(apply(x.trap, 2, is.na), 2, sum) == 0)
+  # loop through year
+  for (y in 1:4) {
+    
+    # if there aren't any, give all NAs
+    if (nrow(mr.data %>% filter(siteID == i & year == y)) == 0) {
+      
+      trap.op.array[ , , y] <- matrix(NA, nrow = 36, ncol = max(site.lookup$K))
+      
+      # else, fill according to the rules
+    } else {
+      
+      # subset MR session
+      focal.mr <- mr.data %>% 
+        
+        filter(siteID == i & 
+               year == y) %>%
+        
+        # keep MR data
+        dplyr::select(D1:D8)
+        
+      # unlist and assign
+      focal.mr.vect <- unlist(focal.mr)
+      
+      focal.mr.vect[which(focal.mr.vect %notin% c("X", "C", "B", "E"))] <- 1
+      focal.mr.vect[which(focal.mr.vect %in% c("X"))] <- 0
+      focal.mr.vect[which(focal.mr.vect %in% c("C", "B", "E"))] <- 0.5
+      
+      trap.op.array[ , , y] <- matrix(as.numeric(focal.mr.vect),
+                                      nrow = 36,
+                                      ncol = max(site.lookup$K))
+      
+    }
+    
+  }
   
-  # unlist and assign
-  focal.mr.vect <- unlist(x.trap)
-  
-  focal.mr.vect[which(focal.mr.vect %notin% c("X", "C", "B", "E"))] <- 1
-  focal.mr.vect[which(focal.mr.vect %in% c("X"))] <- 0
-  focal.mr.vect[which(focal.mr.vect %in% c("C", "B", "E"))] <- 0.5
-  
-  trap.op <- as.data.frame(matrix(as.numeric(focal.mr.vect),
-                                  nrow = nrow(x.trap),
-                                  ncol = K))
-  
-  return(trap.op)
+  # bind into list
+  trap.op.list[[i]] <- trap.op.array
   
 }
 
-# use function
-all.trap.op <- bind_rows(lapply(mr.data.split, make_trap_op))
+# ______________________________________________________________________________
+# 10. Occasions by session ----
 
-# save to file
-write.csv(all.trap.op, "Data for model/trap_op.csv", row.names = F)
+# U x YR
 
 # ______________________________________________________________________________
-# 8. Occasions by session ----
+
+occ.sess <- as.matrix(
+  
+  site.lookup %>% 
+  
+  dplyr::select(K, siteID, year) %>%
+  
+  pivot_wider(names_from = year,
+              values_from = K) %>%
+  
+  arrange(siteID) %>%
+  
+  dplyr::select(-siteID)
+  
+  )
+
+# ______________________________________________________________________________
+# 11. Write to file ----
 # ______________________________________________________________________________
 
-occ_sess <- function (x) {
-  
-  # subset trapping histories only
-  x.trap <- x %>% dplyr::select(D1:D8)
-  
-  # how many occasions?
-  K = sum(apply(apply(x.trap, 2, is.na), 2, sum) == 0)
-  
-  return(K)
-  
-}
+# open CH
+open.ch.3 <- as.matrix(open.ch.2[ , c(4:7)])
 
-all.occ.sess <- data.frame(sessionID = 1:41,
-                           K = unlist(lapply(mr.data.split, occ_sess)))
+saveRDS(open.ch.3, "for_model/open_ch.rds")
 
-# save to file
-write.csv(all.occ.sess, "Data for model/occ_sess.csv", row.names = F)
+# closed CH
+saveRDS(all.indiv.ch.arr, "for_model/closed_ch.rds")
+
+# previous capture
+saveRDS(prev.cap.arr, "for_model/prev_cap.rds")
+
+# individual covariates
+saveRDS(indiv.covs, "for_model/indiv_covs.rds")
+
+# trap operation
+saveRDS(trap.op.list, "for_model/trap_op.rds")
+
+# occasions by session
+saveRDS(occ.sess, "for_model/occ_sess.rds")
