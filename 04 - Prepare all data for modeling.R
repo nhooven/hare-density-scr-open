@@ -4,7 +4,7 @@
 # EMAIL: nathan.d.hooven@gmail.com
 # BEGAN: 14 Jan 2026
 # COMPLETED: 20 Jan 2026
-# LAST MODIFIED: 29 Jan 2026
+# LAST MODIFIED: 30 Jan 2026
 # R VERSION: 4.4.3
 
 # ______________________________________________________________________________
@@ -204,13 +204,21 @@ indiv.covs.M <- list(
 )
 
 # ______________________________________________________________________________
-# 6. Correct forest type covariate ----
+# 6. Additional covariates / constants ----
+# ______________________________________________________________________________
+# 6a. Forest type covariate ----
 
 # 0 for SFL, 1 for XMC
 
 # ______________________________________________________________________________
 
 indiv.covs.M[[7]] <- ifelse(indiv.covs.M[[2]] == 4, 1, 0)
+
+# ______________________________________________________________________________
+# 6b. "First year" index for each site ----
+# ______________________________________________________________________________
+
+first.year <- c(2, 2, 2, 1, 1, 1, 1, 2, 1, 2, 2, 2)
 
 # ______________________________________________________________________________
 # 7. Build lists for model ----
@@ -232,6 +240,9 @@ constant.list <- list(
   
   # K/session lookup [U, YR]
   K = occ.sess,
+  
+  # "first" year by site [U]
+  first.year = first.year,
   
   # indices for each individual [M]
   site = indiv.covs.M[[1]],
