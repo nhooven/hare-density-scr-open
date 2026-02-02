@@ -4,7 +4,7 @@
 # EMAIL: nathan.d.hooven@gmail.com
 # BEGAN: 14 Jan 2026
 # COMPLETED: 20 Jan 2026
-# LAST MODIFIED: 30 Jan 2026
+# LAST MODIFIED: 02 Feb 2026
 # R VERSION: 4.4.3
 
 # ______________________________________________________________________________
@@ -286,8 +286,122 @@ data.list <- list(
 )
 
 # ______________________________________________________________________________
-# 7. Save to file ----
+# 7c. Sensible state inits ----
+
+# we need to pass state inits to nimble so it can freely estimate latent states
+# these should be flexible so each chain can get its own starts
+# but NOT flexible enough to propose impossible states
+
+# this function will "march" along each indivs open CH, referencing a simple
+# transition matrix
+
+# ______________________________________________________________________________  
+
+# function
+make_init_states <- function (x) {
+  
+  # transition matrix 3 x 3
+  trans.mat <- matrix(
+    
+    data = c(0.5, 0.5, 0,
+             0, 0.5, 0.5,
+             0, 0, 1),
+    nrow = 3,
+    ncol = 3,
+    byrow = T
+    
+  )
+  
+  na.indices <- which(is.na(x))
+  
+  # how many NAs?
+  n.na <- length(na.indices)
+  
+  # if there are no integer states
+  if (n.na == 4) {
+    
+    # vector to hold all integer states
+    integer.states <- vector()
+    
+    integer.states[1] <- rbinom(1, 1, 0.5) + 1
+    
+    # for next values
+    for (k in 2:4) {
+      
+      # only proceed if k is in na.indices
+      if (k %in% na.indices) {
+        
+        # look at k - 1
+        trans.probs.k <- trans.mat[integer.states[k - 1], ]
+        
+        integer.states[k] <-  which(rmultinom(1, 1, trans.probs.k) == 1)
+        
+      }
+      
+    }
+    
+  }
+  
+  # else, assign x to integer.states
+  else {
+    
+    integer.states <- x
+    
+    # first index is NA and second IS NOT 3
+    if (k == 1 & 
+        k %in% na.indices &
+        integer.states[2] != 3) {
+      
+      integer.states[1] <- rbinom(1, 1, 0.5) + 1
+      
+    }
+    
+    # if first index is NA and second IS 3
+    if (k == 1 & 
+        k %in% na.indices &
+        integer.states[2] == 3) {
+      
+      integer.states[1] <- 2
+      
+    }
+    
+    # for next values
+    for (k in 2:4) {
+      
+      # only proceed if k is in na.indices
+      if (k %in% na.indices) {
+        
+        # look at k - 1
+        trans.probs.k <- trans.mat[integer.states[k - 1], ]
+        
+        integer.states[k] <-  which(rmultinom(1, 1, trans.probs.k) == 1)
+        
+      }
+      
+    }
+    
+  }
+  
+  # convert true states to NA
+  y <- integer.states
+  
+  y[which(is.na(x) == F)] <- NA
+  
+  return(y)
+  
+}
+
+# apply function thrice (one for each chain)
+state.inits <- list()
+
+state.inits[[1]] <- t(apply(open.ch.all, 1, make_init_states))
+state.inits[[2]] <- t(apply(open.ch.all, 1, make_init_states))
+state.inits[[3]] <- t(apply(open.ch.all, 1, make_init_states))
+
+# ______________________________________________________________________________
+# 8. Save to file ----
 # ______________________________________________________________________________    
 
 saveRDS(constant.list, "for_model/constants.rds")
 saveRDS(data.list, "for_model/data.rds")
+saveRDS(state.inits, "for_model/state_inits.rds")

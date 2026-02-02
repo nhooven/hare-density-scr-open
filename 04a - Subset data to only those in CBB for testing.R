@@ -4,7 +4,7 @@
 # EMAIL: nathan.d.hooven@gmail.com
 # BEGAN: 14 Jan 2026
 # COMPLETED: 20 Jan 2026
-# LAST MODIFIED: 29 Jan 2026
+# LAST MODIFIED: 02 Feb 2026
 # R VERSION: 4.4.3
 
 # ______________________________________________________________________________
@@ -19,6 +19,7 @@ library(tidyverse)
 
 constant.list <- readRDS("for_model/constants.rds")
 data.list <- readRDS("for_model/data.rds")
+state.inits <- readRDS("for_model/state_inits.rds")
 
 # ______________________________________________________________________________
 # 3. CBB indices ----
@@ -69,9 +70,22 @@ data.cbb <- list(
 )
 
 # ______________________________________________________________________________
-# 5. Write to file ----
+# 5. Subset state inits ----
+# ______________________________________________________________________________
+
+state.inits.cbb <- list(
+  
+  state.inits[[1]][cbb.indices.M, ],
+  state.inits[[2]][cbb.indices.M, ],
+  state.inits[[3]][cbb.indices.M, ]
+  
+)
+
+# ______________________________________________________________________________
+# 6. Write to file ----
 # ______________________________________________________________________________
 
 saveRDS(constants.cbb, "for_model/CBB_test/constants.rds")
 saveRDS(data.cbb, "for_model/CBB_test/data.rds")
+saveRDS(state.inits.cbb, "for_model/CBB_test/state_inits.rds")
 
