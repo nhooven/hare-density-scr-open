@@ -4,7 +4,7 @@
 # EMAIL: nathan.d.hooven@gmail.com
 # BEGAN: 14 Jan 2026
 # COMPLETED: 14 Jan 2026
-# LAST MODIFIED: 29 Jan 2026
+# LAST MODIFIED: 06 Feb 2026
 # R VERSION: 4.4.3
 
 # ______________________________________________________________________________
@@ -111,12 +111,16 @@ plot_grid(plotlist = all.units, nrow = 4)
 # we'll pack these into a list with lapply
 traps.split <- split(traps.sf, traps.sf$site)
 
+# from preliminary results using the secr package, it looks like we get
+# diminishing returns beyond about 125 m
+# let's do 150 to be safe
+
 # ______________________________________________________________________________
 
 make_state_space <- function (
   
   x,  
-  buffer = 200
+  buffer = 150
   
 ) {
   

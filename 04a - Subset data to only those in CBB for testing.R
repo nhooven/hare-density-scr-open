@@ -4,7 +4,7 @@
 # EMAIL: nathan.d.hooven@gmail.com
 # BEGAN: 14 Jan 2026
 # COMPLETED: 20 Jan 2026
-# LAST MODIFIED: 02 Feb 2026
+# LAST MODIFIED: 11 Feb 2026
 # R VERSION: 4.4.3
 
 # ______________________________________________________________________________
@@ -34,7 +34,7 @@ cbb.indices.n <- cbb.indices.M[cbb.indices.M <= 876]
 
 constants.cbb <- list(
   
-  n = cbb.indices.n,
+  n = length(cbb.indices.n),
   M = length(cbb.indices.M),
   J = 36,
   U = 3,
@@ -58,12 +58,15 @@ constants.cbb$site[constants.cbb$site == 6] <- 3
 
 data.cbb <- list(
   
-  z = data.list$z[cbb.indices.M],
-  ch = data.list$ch[cbb.indices.n],
-  prev.cap = data.list$prev.cap[cbb.indices.M],
+  z = data.list$z[cbb.indices.M, ],
+  ch = data.list$ch[cbb.indices.n, , ],
+  prev.cap = data.list$prev.cap[cbb.indices.M, , ],
+  trap.deaths = data.list$trap.deaths[cbb.indices.M, , ],
   trap.op = data.list$trap.op[ , , , 4:6],
-  ret = data.list$ret[cbb.indices.M],
-  pil = data.list$pil[cbb.indices.M],
+  S.lim = data.list$S.lim[4:6, , ],
+  trap.coords = data.list$trap.coords[ , , 4:6],
+  ret = data.list$ret[cbb.indices.M, ],
+  pil = data.list$pil[cbb.indices.M, ], 
   sex = data.list$sex[cbb.indices.M],
   zeroes = data.list$zeroes[cbb.indices.M, ]
   
@@ -88,4 +91,3 @@ state.inits.cbb <- list(
 saveRDS(constants.cbb, "for_model/CBB_test/constants.rds")
 saveRDS(data.cbb, "for_model/CBB_test/data.rds")
 saveRDS(state.inits.cbb, "for_model/CBB_test/state_inits.rds")
-

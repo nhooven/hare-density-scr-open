@@ -4,7 +4,7 @@
 # EMAIL: nathan.d.hooven@gmail.com
 # BEGAN: 14 Jan 2026
 # COMPLETED: 20 Jan 2026
-# LAST MODIFIED: 02 Feb 2026
+# LAST MODIFIED: 11 Feb 2026
 # R VERSION: 4.4.3
 
 # ______________________________________________________________________________
@@ -31,6 +31,9 @@ closed.ch <- readRDS("for_model/closed_ch.rds")
 
 # previous capture
 prev.cap <- readRDS("for_model/prev_cap.rds")
+
+# trap deaths
+trap.deaths <- readRDS("for_model/trap_deaths.rds")
 
 # covariates
 indiv.covs <- readRDS("for_model/indiv_covs.rds")
@@ -87,6 +90,16 @@ open.ch.1 <- matrix(as.integer(open.ch),
                     ncol = 4)
 
 # ______________________________________________________________________________
+# 3c. Previous capture ----
+
+# even during primary occasions where an individual isn't available, these need to 
+# be all zeroes
+
+# ______________________________________________________________________________
+
+prev.cap[is.na(prev.cap) == T] <- 0
+
+# ______________________________________________________________________________
 # 4. Define required quantities ----
 # ______________________________________________________________________________
 
@@ -115,10 +128,10 @@ S.areas <- S.area$area
 
 # define how many individuals to add by site
 # ultimately this should be related to the total number we ever saw in a site
-# maybe start with 5 x n.u?
+# maybe start with 6 x n.u?
 
 # totals by site
-n.aug.u <- n.u * 5
+n.aug.u <- n.u * 6
 
 n.aug = sum(n.aug.u)
 
@@ -138,8 +151,9 @@ zeroes <- matrix(data = cbind(c(rep(NA, times = n), rep(0, times = n.aug)),
                               c(rep(NA, times = n), rep(0, times = n.aug))),
                  ncol = 4)
 
-# add zero rows to prev.cap
+# add zero rows to prev.cap and one rows to trap.deaths
 prev.cap.1 <- array(data = NA, dim = c(M, 8, 4))
+trap.deaths.1 <- array(data = NA, dim = c(M, 8, 4))
 
 # loop through years
 for (y in 1:4) {
@@ -149,6 +163,11 @@ for (y in 1:4) {
                               matrix(data = 0,
                                      nrow = n.aug,
                                      ncol = 8))
+  
+  trap.deaths.1[ , , y] <- rbind(trap.deaths[ , , y],
+                                 matrix(data = 1,
+                                        nrow = n.aug,
+                                        ncol = 8))
   
 }  
 
@@ -266,6 +285,9 @@ data.list <- list(
   # previous capture [M, max(K), YR]
   prev.cap = prev.cap.1,
   
+  # trap deaths [M, max(K), YR]
+  trap.deaths = trap.deaths.1,
+  
   # trap operation [J, max(K), YR, U]
   trap.op = trap.op.4D,
   
@@ -300,92 +322,171 @@ data.list <- list(
 # function
 make_init_states <- function (x) {
   
-  # transition matrix 3 x 3
-  trans.mat <- matrix(
-    
-    data = c(0.5, 0.5, 0,
-             0, 0.5, 0.5,
-             0, 0, 1),
-    nrow = 3,
-    ncol = 3,
-    byrow = T
-    
-  )
-  
+  # which indices to fill?
   na.indices <- which(is.na(x))
   
   # how many NAs?
-  n.na <- length(na.indices)
+  n.na = length(na.indices)
   
-  # if there are no integer states
+  # ALL STATES ARE OBSERVED
+  # z inits get NAs
+  if (n.na == 0) {
+    
+    y <- rep(NA, 4)
+    
+  }
+  
+  # ALL STATES ARE UNOBSERVED
+  # march along, filling in possible states
   if (n.na == 4) {
     
-    # vector to hold all integer states
-    integer.states <- vector()
+    # first one can be either a 1 or 2
+    x.1 <- vector()  # vector to hold all integer states
     
-    integer.states[1] <- rbinom(1, 1, 0.5) + 1
+    x.1[1] <- rbinom(1, 1, 0.5) + 1
     
-    # for next values
-    for (k in 2:4) {
+    # loop through the rest
+    for (t in 2:4) {
       
-      # only proceed if k is in na.indices
-      if (k %in% na.indices) {
+      if (t == 2) {
         
-        # look at k - 1
-        trans.probs.k <- trans.mat[integer.states[k - 1], ]
+        x.1[2] <- case_when(
+          
+          # t1 == 1
+          x.1[1] == 1 & x.1[3] == 1 ~ 1,                             # 1
+          x.1[1] == 1 & x.1[3] == 2 ~ rbinom(1, 1, 0.5) + 1,         # 1 or 2
+          x.1[1] == 1 & x.1[3] == 3 ~ rbinom(1, 1, 0.5) + 2,         # 2 or 3
+          x.1[1] == 1 & is.na(x.1[3]) == T ~ rbinom(1, 1, 0.5) + 1,  # 1 or 2
+          
+          # t1 == 2
+          x.1[1] == 2 & x.1[3] == 2 ~ 2,                             # 2
+          x.1[1] == 2 & x.1[3] == 3 ~ rbinom(1, 1, 0.5) + 2,         # 2 or 3
+          x.1[1] == 2 & is.na(x.1[3]) == T ~ rbinom(1, 1, 0.5) + 2   # 2 or 3
+          
+        )
         
-        integer.states[k] <-  which(rmultinom(1, 1, trans.probs.k) == 1)
+        # t == 3
+      } else if (t == 3) {
         
-      }
+        x.1[3] <- case_when(
+          
+          # t2 == 1
+          x.1[2] == 1 & x.1[4] == 2 ~ rbinom(1, 1, 0.5) + 1,         # 1 or 2
+          x.1[2] == 1 & x.1[4] == 3 ~ 2,                             # 2
+          x.1[2] == 1 & is.na(x.1[4]) == T ~ rbinom(1, 1, 0.5) + 1,  # 1 or 2
+          
+          # t2 == 2
+          x.1[2] == 2 & x.1[4] == 2 ~ 2,                             # 2
+          x.1[2] == 2 & x.1[4] == 3 ~ rbinom(1, 1, 0.5) + 2,         # 2 or 3
+          x.1[2] == 2 & is.na(x.1[4]) == T ~ rbinom(1, 1, 0.5) + 2,  # 2 or 3
+          
+          # t2 == 3
+          x.1[2] == 3 ~ 3                                            # 3
+          
+        )
+        
+        # t == 4
+      } else {
+        
+        # only need to check x.1[3]
+        x.1[4] <- case_when(
+          
+          x.1[3] == 1 ~ 2,
+          x.1[3] == 2 ~ rbinom(1, 1, 0.5) + 2,
+          x.1[3] == 3 ~ 3
+          
+        )
+        
+      } 
       
-    }
+    } # t
+    
+    #change x.1 to y by adding NAs
+    y <- x.1
+    
+    y[which(is.na(x) == F)] <- NA
     
   }
   
-  # else, assign x to integer.states
-  else {
+  # SOME STATES ARE OBSERVED, SOME ARE UNOBSERVED
+  if (n.na %in% c(1:3)) {
     
-    integer.states <- x
+    x.1 <- x
     
-    # first index is NA and second IS NOT 3
-    if (k == 1 & 
-        k %in% na.indices &
-        integer.states[2] != 3) {
+    # loop through years, checking previous AND next state
+    for (t in 1:4) {
       
-      integer.states[1] <- rbinom(1, 1, 0.5) + 1
-      
-    }
-    
-    # if first index is NA and second IS 3
-    if (k == 1 & 
-        k %in% na.indices &
-        integer.states[2] == 3) {
-      
-      integer.states[1] <- 2
-      
-    }
-    
-    # for next values
-    for (k in 2:4) {
-      
-      # only proceed if k is in na.indices
-      if (k %in% na.indices) {
+      # proceed if the current state is NA
+      if (is.na(x.1[t]) == T) {
         
-        # look at k - 1
-        trans.probs.k <- trans.mat[integer.states[k - 1], ]
-        
-        integer.states[k] <-  which(rmultinom(1, 1, trans.probs.k) == 1)
+        # t == 1
+        if (t == 1) {
+          
+          # this state can only be 1 or 2
+          x.1[1] <- rbinom(1, 1, 0.5) + 1
+          
+          # t == 2
+        } else if (t == 2) {
+          
+          x.1[2] <- case_when(
+            
+            # t1 == 1
+            x.1[1] == 1 & x.1[3] == 1 ~ 1,                             # 1
+            x.1[1] == 1 & x.1[3] == 2 ~ rbinom(1, 1, 0.5) + 1,         # 1 or 2
+            x.1[1] == 1 & x.1[3] == 3 ~ rbinom(1, 1, 0.5) + 2,         # 2 or 3
+            x.1[1] == 1 & is.na(x.1[3]) == T ~ rbinom(1, 1, 0.5) + 1,  # 1 or 2
+            
+            # t1 == 2
+            x.1[1] == 2 & x.1[3] == 2 ~ 2,                             # 2
+            x.1[1] == 2 & x.1[3] == 3 ~ rbinom(1, 1, 0.5) + 2,         # 2 or 3
+            x.1[1] == 2 & is.na(x.1[3]) == T ~ rbinom(1, 1, 0.5) + 2   # 2 or 3
+            
+          )
+          
+          # t == 3
+        } else if (t == 3) {
+          
+          x.1[3] <- case_when(
+            
+            # t2 == 1
+            x.1[2] == 1 & x.1[4] == 2 ~ rbinom(1, 1, 0.5) + 1,         # 1 or 2
+            x.1[2] == 1 & x.1[4] == 3 ~ 2,                             # 2
+            x.1[2] == 1 & is.na(x.1[4]) == T ~ rbinom(1, 1, 0.5) + 1,  # 1 or 2
+            
+            # t2 == 2
+            x.1[2] == 2 & x.1[4] == 2 ~ 2,                             # 2
+            x.1[2] == 2 & x.1[4] == 3 ~ rbinom(1, 1, 0.5) + 2,         # 2 or 3
+            x.1[2] == 2 & is.na(x.1[4]) == T ~ rbinom(1, 1, 0.5) + 2,  # 2 or 3
+            
+            # t2 == 3
+            x.1[2] == 3 ~ 3                                            # 3
+            
+          )
+          
+          # t == 4
+        } else {
+          
+          # only need to check x.1[3]
+          x.1[4] <- case_when(
+            
+            x.1[3] == 1 ~ 2,
+            x.1[3] == 2 ~ rbinom(1, 1, 0.5) + 2,
+            x.1[3] == 3 ~ 3
+            
+          )
+          
+        } 
         
       }
       
-    }
+    } # t
+    
+    # change x.1 to y by adding NAs
+    y <- x.1
+    
+    y[which(is.na(x) == F)] <- NA
     
   }
-  
-  # convert true states to NA
-  y <- integer.states
-  
-  y[which(is.na(x) == F)] <- NA
   
   return(y)
   
@@ -397,6 +498,11 @@ state.inits <- list()
 state.inits[[1]] <- t(apply(open.ch.all, 1, make_init_states))
 state.inits[[2]] <- t(apply(open.ch.all, 1, make_init_states))
 state.inits[[3]] <- t(apply(open.ch.all, 1, make_init_states))
+
+# check validity
+sum(apply(state.inits[[1]], 1, is.unsorted, na.rm = T))
+sum(apply(state.inits[[2]], 1, is.unsorted, na.rm = T))
+sum(apply(state.inits[[3]], 1, is.unsorted, na.rm = T))
 
 # ______________________________________________________________________________
 # 8. Save to file ----

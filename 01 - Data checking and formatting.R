@@ -4,7 +4,7 @@
 # EMAIL: nathan.d.hooven@gmail.com
 # BEGAN: 12 Jan 2026
 # COMPLETED: 29 Jan 2026
-# LAST MODIFIED: 29 Jan 2026
+# LAST MODIFIED: 06 Feb 2026
 # R VERSION: 4.4.3
 
 # ______________________________________________________________________________
@@ -43,7 +43,9 @@ open.ch <- open.ch %>%
                 PRE1,
                 PRE2,
                 POST1,
-                POST2) %>%
+                POST2,
+                TD.T,
+                TD.K) %>%
   
   rename(y1 = PRE1,
          y2 = PRE2,
@@ -576,7 +578,37 @@ identical(names(open.ch.split), open.ch.2$MRID.Site)
 # each matrix will be [i] or [i, YR]
 
 # ______________________________________________________________________________
-# 8a. siteID ----
+# 8a. Binary trap death indicator ----
+
+# this will be the exact same dimension as prev.cap
+# it will start as all 1s, and then we'll change any secondary occasion
+# post-death to zero
+
+# will this affect anything? Probably not, but good to do it anyway
+
+# ______________________________________________________________________________
+
+# blank array
+trap.death.arr <- array(1, dim = c(nrow(all.indiv.ch.arr), 
+                                   max(site.lookup$K),
+                                   4))
+
+# extract all trap deaths and save their row.names
+trap.deaths <- open.ch.2 %>% mutate(row = 1:n()) %>% filter(is.na(TD.T) == F)
+
+# loop through
+for (i in trap.deaths$row) {
+  
+  # focal death
+  focal.death <- trap.deaths %>% filter(row == i)
+  
+  # flip 1s to 0s
+  trap.death.arr[i, (focal.death$TD.K + 1):max(site.lookup$K), focal.death$TD.T] <- 0
+  
+}
+
+# ______________________________________________________________________________
+# 8b. siteID ----
 # ______________________________________________________________________________
 
 # as integer
@@ -587,7 +619,7 @@ site.to.int <- left_join(data.frame("SiteName" = open.ch.2$Site),
 cov.site <- site.to.int$siteID
 
 # ______________________________________________________________________________
-# 8b. clusterID ----
+# 8c. clusterID ----
 # ______________________________________________________________________________
 
 # as integer
@@ -597,7 +629,7 @@ cov.cluster <- case_when(site.to.int$siteID %in% c(1:3) ~ 1,
                          site.to.int$siteID %in% c(10:12) ~ 4)
 
 # ______________________________________________________________________________
-# 8c. Treatment ----
+# 8d. Treatment ----
 
 # varies by year
 
@@ -611,14 +643,14 @@ cov.ret[ , c(1:2)] <- 0
 cov.pil[ , c(1:2)] <- 0
 
 # post
-cov.ret[which(cov.site[ , 1] %in% c(1, 5, 8, 10)), c(3:4)] <- 1
-cov.ret[which(cov.site[ , 1] %notin% c(1, 5, 8, 10)), c(3:4)] <- 0
+cov.ret[which(cov.site %in% c(1, 5, 8, 10)), c(3:4)] <- 1
+cov.ret[which(cov.site %notin% c(1, 5, 8, 10)), c(3:4)] <- 0
 
-cov.pil[which(cov.site[ , 1] %in% c(2, 4, 7, 11)), c(3:4)] <- 1
-cov.pil[which(cov.site[ , 1] %notin% c(2, 4, 7, 11)), c(3:4)] <- 0
+cov.pil[which(cov.site %in% c(2, 4, 7, 11)), c(3:4)] <- 1
+cov.pil[which(cov.site %notin% c(2, 4, 7, 11)), c(3:4)] <- 0
 
 # ______________________________________________________________________________
-# 8d. Sex ----
+# 8e. Sex ----
 
 # this must be binary (F == 0, M == 1) with NAs for anything latent
 
@@ -629,7 +661,7 @@ cov.sex <- case_when(open.ch.2$Sex == "F" ~ 0,
                      open.ch.2$Sex == "U" ~ NA)
 
 # ______________________________________________________________________________
-# 8e. indivID ----
+# 8f. indivID ----
 
 # this will be helpful to have as just an index
 
@@ -638,7 +670,7 @@ cov.sex <- case_when(open.ch.2$Sex == "F" ~ 0,
 cov.indivID <- 1:nrow(open.ch.2)
 
 # ______________________________________________________________________________
-# 8f. Bind into a list ----
+# 8g. Bind into a list ----
 # ______________________________________________________________________________
 
 indiv.covs <- list(cov.site, cov.cluster, cov.ret, cov.pil, cov.sex, cov.indivID)
@@ -750,6 +782,9 @@ saveRDS(all.indiv.ch.arr, "for_model/closed_ch.rds")
 
 # previous capture
 saveRDS(prev.cap.arr, "for_model/prev_cap.rds")
+
+# trap deaths
+saveRDS(trap.death.arr, "for_model/trap_deaths.rds")
 
 # individual covariates
 saveRDS(indiv.covs, "for_model/indiv_covs.rds")
