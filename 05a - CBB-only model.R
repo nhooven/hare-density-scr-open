@@ -301,7 +301,8 @@ model.1 <- nimbleModel(
   
 )
 
-model.1$calculate(node = "phi")
+model.1$calculate(node = "ch[257, 1, 1]")
+model.1$calculate(node = "z[4,3]")
 
 # block samplers for detection intercepts
 model.1.conf <- configureMCMC(model.1)
@@ -320,6 +321,8 @@ model.1.mcmc <- buildMCMC(conf = model.1.conf)
 # compile model
 compileNimble(model.1)
 model.1.comp <- compileNimble(model.1.mcmc, project = model.1)
+
+### calculate after compilation
 
 # run MCMC
 model.1.run <- runMCMC(

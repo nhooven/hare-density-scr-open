@@ -4,7 +4,7 @@
 # EMAIL: nathan.d.hooven@gmail.com
 # BEGAN: 12 Jan 2026
 # COMPLETED: 29 Jan 2026
-# LAST MODIFIED: 06 Feb 2026
+# LAST MODIFIED: 12 Feb 2026
 # R VERSION: 4.4.3
 
 # ______________________________________________________________________________
@@ -576,6 +576,13 @@ identical(names(open.ch.split), open.ch.2$MRID.Site)
 # now we can just tack on covariate values in that order
 # this will end up being a list of each covariate
 # each matrix will be [i] or [i, YR]
+
+# find 4 problematic individuals
+# 189, 287, 321, 598
+open.ch.2$MRID.Site[189]
+open.ch.2$MRID.Site[287]
+open.ch.2$MRID.Site[321]
+open.ch.2$MRID.Site[598]
 
 # ______________________________________________________________________________
 # 8a. Binary trap death indicator ----

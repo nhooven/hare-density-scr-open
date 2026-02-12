@@ -4,7 +4,7 @@
 # EMAIL: nathan.d.hooven@gmail.com
 # BEGAN: 14 Jan 2026
 # COMPLETED: 20 Jan 2026
-# LAST MODIFIED: 11 Feb 2026
+# LAST MODIFIED: 12 Feb 2026
 # R VERSION: 4.4.3
 
 # ______________________________________________________________________________
@@ -439,7 +439,8 @@ make_init_states <- function (x) {
             # t1 == 2
             x.1[1] == 2 & x.1[3] == 2 ~ 2,                             # 2
             x.1[1] == 2 & x.1[3] == 3 ~ rbinom(1, 1, 0.5) + 2,         # 2 or 3
-            x.1[1] == 2 & is.na(x.1[3]) == T ~ rbinom(1, 1, 0.5) + 2   # 2 or 3
+            x.1[1] == 2 & is.na(x.1[3]) == T & x.1[4] != 2 ~ rbinom(1, 1, 0.5) + 2,   # 2 or 3
+            x.1[1] == 2 & is.na(x.1[3]) == T & x.1[4] == 2 ~ 2        # 2
             
           )
           
@@ -500,12 +501,139 @@ state.inits[[2]] <- t(apply(open.ch.all, 1, make_init_states))
 state.inits[[3]] <- t(apply(open.ch.all, 1, make_init_states))
 
 # check validity
-sum(apply(state.inits[[1]], 1, is.unsorted, na.rm = T))
-sum(apply(state.inits[[2]], 1, is.unsorted, na.rm = T))
-sum(apply(state.inits[[3]], 1, is.unsorted, na.rm = T))
+# merge states function
+merge_states <- function (open.ch.all, state.inits) {
+  
+  all.states <- data.frame()
+  
+  for (i in 1:nrow(open.ch.all)) {
+    
+    focal.ch <- open.ch.all[i, ]
+    focal.inits <- state.inits[i, ]
+    
+    # bind together
+    both <- rbind(focal.ch, focal.inits)
+    
+    # extract (I think this works)
+    real.states <- both[which(is.na(both) == F)]
+    
+    # bind in
+    all.states <- rbind(all.states, real.states)
+    
+  }
+  
+  return(all.states)
+  
+}
+
+merge.1 <- merge_states(open.ch.all, state.inits = state.inits[[1]])
+merge.2 <- merge_states(open.ch.all, state.inits = state.inits[[2]])
+merge.3 <- merge_states(open.ch.all, state.inits = state.inits[[3]])
+
+sum(apply(merge.1, 1, is.unsorted))
+sum(apply(merge.2, 1, is.unsorted))
+sum(apply(merge.3, 1, is.unsorted))
 
 # ______________________________________________________________________________
-# 8. Save to file ----
+# 8. Check likelihood-breaking in the closed CH ----
+
+# We cannot have individuals captured in a trap that has its categorical
+# probability "zeroed out" by the trap operation/trap death variable
+
+# I'll write a function that checks this for every closed CH
+# and returns a list of problematic individuals
+
+# ______________________________________________________________________________    
+
+check_chs <- function (data.list, constant.list) {
+  
+  ch <- data.list$ch
+  trap.op <- data.list$trap.op
+  trap.deaths <- data.list$trap.deaths
+  site <- constant.list$site
+  
+  # subset to only captured individuals
+  trap.deaths.1 <- trap.deaths[1:nrow(ch), ,]
+  
+  # blank df
+  problem.ch.all <- data.frame()
+  
+  # loop through indivs i
+  for (i in 1:nrow(ch)) {
+    
+    # subset trap.op to correct site
+    trap.op.focal <- trap.op[ , , , site[i]]
+    
+    # loop through year t
+    for (t in 1:4) {
+      
+      # focal closed session 1:8
+      ch.focal <- ch[i, , t]
+      
+      # focal trap deaths 1:8
+      trap.deaths.focal <- trap.deaths.1[i, , t]
+      
+      # focal trap op 1:36, 1:8
+      trap.op.focal <- trap.op[ , , t, site[i]]
+      
+      # check ch against trap deaths
+      # IF hare was caught at all (ch.focal != 37)
+      if (any(ch.focal != 37) & any(trap.deaths.focal == 0)) {
+        
+        #  then trap.deaths must be 1
+        if (any(which(ch.focal != 37) %in% which(trap.deaths.focal == 0))) {
+          
+          # bind in
+          problem.ch <- data.frame(i = i,
+                                   t = t,
+                                   prob = "trap.deaths")
+          
+          problem.ch.all <- rbind(problem.ch.all, problem.ch)
+          
+        }
+        
+      }
+      
+      # check ch against trap op
+      if (any(ch.focal != 37, na.rm = T)) {
+        
+        # trap(s) and occasions
+        k.all <- which(ch.focal != 37)
+        
+        # loop through
+        for (k in k.all) {
+          
+          j <- ch.focal[k]
+          
+          if (0 %in% trap.op.focal[j, k]) {
+            
+            # bind in
+            problem.ch <- data.frame(i = i,
+                                     t = t,
+                                     prob = "trap.op")
+            
+            problem.ch.all <- rbind(problem.ch.all, problem.ch)
+            
+          }
+          
+        }
+        
+        
+      }
+      
+    }
+    
+  }
+  
+  return(problem.ch.all)
+  
+}
+
+# use function
+(check.chs <- check_chs(data.list, constant.list))
+
+# ______________________________________________________________________________
+# 9. Save to file ----
 # ______________________________________________________________________________    
 
 saveRDS(constant.list, "for_model/constants.rds")
