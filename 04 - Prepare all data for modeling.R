@@ -4,7 +4,7 @@
 # EMAIL: nathan.d.hooven@gmail.com
 # BEGAN: 14 Jan 2026
 # COMPLETED: 20 Jan 2026
-# LAST MODIFIED: 12 Feb 2026
+# LAST MODIFIED: 14 Feb 2026
 # R VERSION: 4.4.3
 
 # ______________________________________________________________________________
@@ -88,16 +88,6 @@ open.ch[open.ch == "2*"] <- NA
 open.ch.1 <- matrix(as.integer(open.ch),
                     nrow = nrow(closed.ch),
                     ncol = 4)
-
-# ______________________________________________________________________________
-# 3c. Previous capture ----
-
-# even during primary occasions where an individual isn't available, these need to 
-# be all zeroes
-
-# ______________________________________________________________________________
-
-prev.cap[is.na(prev.cap) == T] <- 0
 
 # ______________________________________________________________________________
 # 4. Define required quantities ----
@@ -639,3 +629,4 @@ check_chs <- function (data.list, constant.list) {
 saveRDS(constant.list, "for_model/constants.rds")
 saveRDS(data.list, "for_model/data.rds")
 saveRDS(state.inits, "for_model/state_inits.rds")
+

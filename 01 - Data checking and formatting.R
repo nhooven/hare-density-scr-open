@@ -4,7 +4,7 @@
 # EMAIL: nathan.d.hooven@gmail.com
 # BEGAN: 12 Jan 2026
 # COMPLETED: 29 Jan 2026
-# LAST MODIFIED: 12 Feb 2026
+# LAST MODIFIED: 14 Feb 2026
 # R VERSION: 4.4.3
 
 # ______________________________________________________________________________
@@ -518,36 +518,31 @@ for (i in 1:length(all.indiv.ch)) {
 # 7. Binary trap response covariate ----
 # ______________________________________________________________________________
 
-# blank array
-prev.cap.arr <- array(NA, dim = c(nrow(all.indiv.ch.arr), 
+# blank (zeroes) array
+prev.cap.arr <- array(0, dim = c(nrow(all.indiv.ch.arr), 
                                   max(site.lookup$K),
                                   4))
 
 # loop through indivs i
 for (i in 1:nrow(all.indiv.ch.arr)) {
-  
+
   # loop through primary occasions y
-  for (y in 1:4) {
+  for (t in 1:4) {
     
-    # if indiv was caught at all
-    if (any(all.indiv.ch.arr[i , , y] %in% 1:36)) {
+    # loop through occasions
+    for (k in 2:max(site.lookup$K)) {
       
-      first.cap.index <- which(all.indiv.ch.arr[i , , y] != 37)[1]
-      
-      # create a binary vector
-      prev.cap.vec <- c(rep(0, times = first.cap.index - 1),
-                        rep(1, times = max(site.lookup$K) - (first.cap.index - 1)))
-      
-      # add NAs
-      prev.cap.vec[which(is.na(all.indiv.ch.arr[i , , y]))] <- NA
-      
-      # bind in
-      prev.cap.arr[i, , y] <- prev.cap.vec
-      
-      # else indiv not caught, all NAs
-    } else {
-      
-      prev.cap.arr[i, , y] <- rep(NA, times = max(site.lookup$K))
+      # if was captured on ANY previous occasions, add a 1
+      if (any(all.indiv.ch.arr[i, 1:(k - 1), t] %in% 1:36)) {
+        
+        prev.cap.arr[i, k, t] <- 1
+        
+        # if not, add a 0
+      } else {
+        
+        prev.cap.arr[i, k, t] <- 0
+        
+      }
       
     }
     
