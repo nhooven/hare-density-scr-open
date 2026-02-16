@@ -18,19 +18,12 @@
 # I'll save the xlim and ylim for each unit's S
 # assume constant across years (reasonable)
 
-# I'll also create tighter S for each unit, and a binary "mask"
-# to better limit possible ACs on irregular-shaped units
-# ultimately, it would be nice if this:
-  # (1) improved sampling speed
-  # (2) reduced data augmentation needs
-
 # ______________________________________________________________________________
 # 2. Load packages ----
 # ______________________________________________________________________________
 
 library(tidyverse)
 library(sf)
-library(terra)
 
 # ______________________________________________________________________________
 # 3. Read in data ----
@@ -126,9 +119,6 @@ traps.split <- split(traps.sf, traps.sf$site)
 
 # ______________________________________________________________________________
 # 7a. Rectangular state space ----
-
-# units are irregularly shaped, so many of them have annoying voids
-
 # ______________________________________________________________________________
 
 make_state_space_rect <- function (
@@ -178,156 +168,6 @@ for (i in 1:12) {
 plot_grid(plotlist = all.S.rect.plots, nrow = 4)
 
 # ______________________________________________________________________________
-# 7b. Irregular state space ----
-
-# we also need to turn these polygons into binary "masks"
-# we'll start with terra rasters, then convert to matrices
-
-# COORDINATES
-# these need to correspond to the indices of the matrix [row, col]
-# so this needs to be (y, x), descending
-# meaning that (0, 0) has to be TOP LEFT
-
-
-# pack traps and rectangular S into a list
-traps.rect.S <- list() 
-
-for (i in 1:12) {
-  
-  traps.rect.S[[i]] <- list(traps.split[[i]], all.S.rect[[i]])
-  
-}
-
-# ______________________________________________________________________________
-
-make_state_space_irr <- function (
-    
-  x,    # traps.rect.S
-  buffer = 150
-  
-) {
-  
-  # buffer traps and dissolve
-  focal.poly <- spatialEco::sf_dissolve(st_buffer(x[[1]], dist = buffer))
-  
-  # create raster
-  
-  # in a nimbleFunction, we'll need to evaluate the mask using a 1s vector
-  # Turek and Eacker do this:
-    # hab_mask[(trunc(s[i,2])+1),(trunc(s[i,1])+1)]
-  # implying that that indices of the mask + 1 correspond to the possible integers
-  # of S
-  # to do it, we need the TOP LEFT to be (0, 0) instead of the centroid
-  # the x-axis is the SAME (the columns)
-  # the y-coords need to be TRANSLATED over the x-axis for the spatial layers
-  
-  # bounding box
-  focal.bbox <- st_bbox(x[[2]])
-  
-  # subtract coordinates
-    # x = j
-    # y = i
-  # rectangular S
-  new.rect <- matrix(c(st_coordinates(x[[2]])[ , 1] - focal.bbox[1],
-                       abs(st_coordinates(x[[2]])[ , 2] - focal.bbox[4])),
-                     ncol = 2)
-  
-  # traps
-  new.traps <- matrix(c(st_coordinates(x[[1]])[ , 1] - focal.bbox[1],
-                        abs(st_coordinates(x[[1]])[ , 2] - focal.bbox[4])),
-                      ncol = 2)
-  
-  # mask
-  new.mask <- matrix(c(st_coordinates(focal.poly)[ , 1] - focal.bbox[1],
-                       abs(st_coordinates(focal.poly)[ , 2] - focal.bbox[4])),
-                     ncol = 2)
-  
-  # new sf objects
-  # rect S
-  new.rect.sf <- st_as_sf(as.data.frame(new.rect),
-                          coords = c("V1", "V2")) %>%
-    
-    summarize(geometry = st_combine(geometry)) %>%
-    
-    st_cast("POLYGON")
-  
-  # traps
-  new.traps.sf <- st_as_sf(as.data.frame(new.traps),
-                           coords = c("V1", "V2"))
-  
-  # mask
-  new.mask.sf <- st_as_sf(as.data.frame(new.mask),
-                          coords = c("V1", "V2")) %>%
-    
-    summarize(geometry = st_combine(geometry)) %>%
-    
-    st_cast("POLYGON")
-  
-  #plot(st_geometry(new.rect.sf))
-  #plot(st_geometry(new.mask.sf), add = T)
-  #plot(st_geometry(new.traps.sf), add = T)
-  
-  # create matrix
-  # let's see what a 10-m resolution looks like
-  x.width = focal.bbox[3] - focal.bbox[1]
-  y.width = focal.bbox[4] - focal.bbox[2]
-  
-  # round up to make sure these are integers
-  mat.ncol = round(x.width / 10)
-  mat.nrow = round(y.width / 10)
-  
-  mask.mat <- matrix(0, nrow = mat.nrow, mat.ncol)
-  
-  # now we need to fill with 1s as per the mask
-  mask.rast <- rast(resolution = 10,
-                    xmin = st_bbox(new.rect.sf)[1],
-                    xmax = st_bbox(new.rect.sf)[3],
-                    ymin = st_bbox(new.rect.sf)[2],
-                    ymax = st_bbox(new.rect.sf)[4],
-                    nrow = mat.nrow,
-                    ncol = mat.ncol,
-                    vals = 1)
-  
-  # mask it
-  mask.rast.1 <- mask(mask.rast, vect(new.mask.sf))
-  
-  # and merge with a zero raster
-  mask.rast.0 <- rast(mask.rast, vals = 0)
-  
-  mask.rast.merge <- merge(mask.rast.1, mask.rast.0)
-  
-  # and convert to matrix
-  # importantly, this matrix is "upside down" so the [row, col] are properly indexed
-  mask.mat.final <- matrix(mask.rast.merge,
-                           nrow = mat.nrow,
-                           ncol = mat.ncol,
-                           byrow = T)
-  
-  # pack into list and return
-  all.out <- list(
-    
-    # rectangular S poly
-    new.rect.sf,
-    
-    # traps
-    st_coordinates(new.traps.sf),
-    
-    # irregular S matrix
-    mask.mat.final,
-    
-    # irregular S poly
-    new.mask.sf
-    
-  )
-  
-  return(all.out)
-  
-}
-
-# use function
-all.S.irr <- lapply(traps.rect.S, make_state_space_irr)
-
-# ______________________________________________________________________________
 # 8. Center S and traps on (0, 0) ----
 
 # UNUSED
@@ -340,7 +180,7 @@ traps.center <- list()
 
 for (i in 1:12) {
   
-  focal.S <- all.rect.S[[i]]
+  focal.S <- all.S.rect[[i]]
   focal.traps <- traps.split[[i]]
   
   # center coordinates (what will end up being (0, 0))
@@ -391,18 +231,18 @@ S.xlim <- matrix(
   
   data = c(
     
-    st_bbox(all.S.irr[[1]][[1]])[c(1, 3)],
-    st_bbox(all.S.irr[[2]][[1]])[c(1, 3)],
-    st_bbox(all.S.irr[[3]][[1]])[c(1, 3)],
-    st_bbox(all.S.irr[[4]][[1]])[c(1, 3)],
-    st_bbox(all.S.irr[[5]][[1]])[c(1, 3)],
-    st_bbox(all.S.irr[[6]][[1]])[c(1, 3)],
-    st_bbox(all.S.irr[[7]][[1]])[c(1, 3)],
-    st_bbox(all.S.irr[[8]][[1]])[c(1, 3)],
-    st_bbox(all.S.irr[[9]][[1]])[c(1, 3)],
-    st_bbox(all.S.irr[[10]][[1]])[c(1, 3)],
-    st_bbox(all.S.irr[[11]][[1]])[c(1, 3)],
-    st_bbox(all.S.irr[[12]][[1]])[c(1, 3)]
+    st_bbox(all.S.center[[1]])[c(1, 3)],
+    st_bbox(all.S.center[[2]])[c(1, 3)],
+    st_bbox(all.S.center[[3]])[c(1, 3)],
+    st_bbox(all.S.center[[4]])[c(1, 3)],
+    st_bbox(all.S.center[[5]])[c(1, 3)],
+    st_bbox(all.S.center[[6]])[c(1, 3)],
+    st_bbox(all.S.center[[7]])[c(1, 3)],
+    st_bbox(all.S.center[[8]])[c(1, 3)],
+    st_bbox(all.S.center[[9]])[c(1, 3)],
+    st_bbox(all.S.center[[10]])[c(1, 3)],
+    st_bbox(all.S.center[[11]])[c(1, 3)],
+    st_bbox(all.S.center[[12]])[c(1, 3)]
     
   ),
   
@@ -417,18 +257,18 @@ S.ylim <- matrix(
   
   data = c(
     
-    st_bbox(all.S.irr[[1]][[1]])[c(2, 4)],
-    st_bbox(all.S.irr[[2]][[1]])[c(2, 4)],
-    st_bbox(all.S.irr[[3]][[1]])[c(2, 4)],
-    st_bbox(all.S.irr[[4]][[1]])[c(2, 4)],
-    st_bbox(all.S.irr[[5]][[1]])[c(2, 4)],
-    st_bbox(all.S.irr[[6]][[1]])[c(2, 4)],
-    st_bbox(all.S.irr[[7]][[1]])[c(2, 4)],
-    st_bbox(all.S.irr[[8]][[1]])[c(2, 4)],
-    st_bbox(all.S.irr[[9]][[1]])[c(2, 4)],
-    st_bbox(all.S.irr[[10]][[1]])[c(2, 4)],
-    st_bbox(all.S.irr[[11]][[1]])[c(2, 4)],
-    st_bbox(all.S.irr[[12]][[1]])[c(2, 4)]
+    st_bbox(all.S.center[[1]])[c(2, 4)],
+    st_bbox(all.S.center[[2]])[c(2, 4)],
+    st_bbox(all.S.center[[3]])[c(2, 4)],
+    st_bbox(all.S.center[[4]])[c(2, 4)],
+    st_bbox(all.S.center[[5]])[c(2, 4)],
+    st_bbox(all.S.center[[6]])[c(2, 4)],
+    st_bbox(all.S.center[[7]])[c(2, 4)],
+    st_bbox(all.S.center[[8]])[c(2, 4)],
+    st_bbox(all.S.center[[9]])[c(2, 4)],
+    st_bbox(all.S.center[[10]])[c(2, 4)],
+    st_bbox(all.S.center[[11]])[c(2, 4)],
+    st_bbox(all.S.center[[12]])[c(2, 4)]
     
   ),
   
@@ -456,11 +296,8 @@ S.areas.df <- data.frame()
 
 for (i in 1:12) {
   
-  # rectangular S
-  area.rect <- st_area(all.S.irr[[i]][[1]]) * 0.0001
-  
-  # irregular S
-  area.irr <- st_area(all.S.irr[[i]][[4]]) * 0.0001
+  # S
+  area.rect <- st_area(all.S.center[[i]]) * 0.0001
   
   # unit
   area.unit <- as.numeric(st_area(units.sf[i, ]) * 0.0001)
@@ -470,10 +307,8 @@ for (i in 1:12) {
     
     unit = i,
     area.rect = area.rect,
-    area.irr = area.irr,
     area.unit = area.unit,
-    aug.rect = round(area.rect / area.unit),
-    aug.irr = round(area.irr / area.unit)
+    aug.rect = round(area.rect / area.unit)
     
   )
   
@@ -498,15 +333,9 @@ trap.coords <- array(data = NA, dim = c(36, 2, 12))
 
 for (i in 1:12) {
   
-  trap.coords[ , , i] <- all.S.irr[[i]][[2]]
+  trap.coords[ , , i] <- st_coordinates(traps.center[[i]])
   
 }
 
 # write file
 saveRDS(trap.coords, file = "for_model/trap_coords.rds")
-
-# ______________________________________________________________________________
-# 12. Final sanity check ----
-# ______________________________________________________________________________
-
-

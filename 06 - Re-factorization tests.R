@@ -4,7 +4,7 @@
 # EMAIL: nathan.d.hooven@gmail.com
 # BEGAN: 06 Feb 2026
 # COMPLETED: 
-# LAST MODIFIED: 14 Feb 2026
+# LAST MODIFIED: 16 Feb 2026
 # R VERSION: 4.4.3
 
 # Here we want to see if we can speed up the closed part of the model
@@ -74,6 +74,10 @@ data.list.1 <- list(
                    matrix(data = 0,
                           nrow = sum(n.aug),
                           ncol = 8)),
+  trap.deaths = rbind(data.list$trap.deaths[indivs, , 1],
+                      matrix(data = 1,
+                             nrow = sum(n.aug),
+                             ncol = 8)),
   trap.op = data.list$trap.op[ , , 1, 1:2],
   S.lim = data.list$S.lim[1:2, 1:2, 1:2],
   trap.coords = data.list$trap.coords[ , 1:2, 1:2],
@@ -95,8 +99,8 @@ data.list.1 <- list(
 model.1.code <- nimbleCode({
   
   # detection
-  # alpha0 - baseline detection
-  alpha0_b0 ~ dunif(-10, 1)      # intercept
+  # alpha0 - baseline detection (log scale)
+  alpha0_b0 ~ dunif(-5, 1)      # intercept
   alpha0_b1 ~ dnorm(0, sd = 1)  # effect of male
   
   # alpha2 - trap response
@@ -145,9 +149,9 @@ model.1.code <- nimbleCode({
     # loop over secondary occasions [K] (indexed by site)
     for (k in 1:K[site[i]]) {
       
-      # alpha0 - un-normalized baseline detection probability [i, k]
-      logit(alpha0[i, k]) <- alpha0_b0 + alpha0_b1 * sex[i] +
-                             alpha2[i] * prev.cap[i, k]
+      # alpha0 - baseline hazard of detection [i, k]
+      log(alpha0[i, k]) <- alpha0_b0 + alpha0_b1 * sex[i] +
+                           alpha2[i] * prev.cap[i, k]
       
       # and loop over traps [J]
       for (j in 1:J) {
@@ -159,7 +163,10 @@ model.1.code <- nimbleCode({
           z[i] *
           
           # trap operation
-          trap.op[j, k, site[i]]
+          trap.op[j, k, site[i]] *
+          
+          # trap deaths
+          trap.deaths[i, k]
         
         # p - normalized probabilities for categorical likelihood
         p[i, k, j] <- eta[i, k, j] / (1 + sum(eta[i, k, 1:J]))  # sum over all traps
@@ -221,18 +228,48 @@ model.1.code <- nimbleCode({
 })
 
 # ______________________________________________________________________________
-# 4b. MODEL 2 - exp(alpha0) ----
+# 4b. MODEL 2 - BLOCK DETECTION ----
 
-# this avoids the logit transform
-# really the p0 isn't a probability anyway
+# this is what we've been doing, with a reasonable proposal v-cov matrix
+# and the RW-block sampler
+# same code
+
+# really I need a longer burn-in for this to be useful
+
+# ______________________________________________________________________________
+# 4c. MODEL 3 - BLOCK DETECTION + AC ----
+
+# following Turek et al. 2021, we'll jointly update the AC coordinates
+# the model parameterization is the same
+
+# this is also the approach from the localSCR package (Eacker)
+# https://github.com/sitkensis22/localSCR/blob/main/R/localSCR.R
+
+# same model code, again
+
+# ______________________________________________________________________________
+# 4d. MODEL 3 - BLOCK DETECTION (AF SLICE) + AC ----
+
+# following localSCR (Eacker)
+# https://github.com/sitkensis22/localSCR/blob/main/R/localSCR.R
+
+# see if this block sampler does better
+
+# same model code, again
+
+# ______________________________________________________________________________
+# 4e. MODEL 5 - DETECTION + AC BLOCK + BETTER PRIORS ----
+
+# alpha0 and sigma_b0 can get tighter priors
+hist(rnorm(1000, log(45), sd = 0.5))
 
 # ______________________________________________________________________________
 
-model.2.code <- nimbleCode({
+model.5.code <- nimbleCode({
   
   # detection
-  # alpha0 - baseline detection
-  alpha0_b0 ~ dunif(-10, 1)      # intercept
+  # alpha0 - baseline detection (log scale)
+  alpha0_b0 ~ dnorm(0, sd = 1)  # intercept
   alpha0_b1 ~ dnorm(0, sd = 1)  # effect of male
   
   # alpha2 - trap response
@@ -240,10 +277,17 @@ model.2.code <- nimbleCode({
   alpha2_b1 ~ dnorm(0, sd = 1)  # effect of male
   
   # sigma - spatial scale of movement
-  sigma_b0 ~ dunif(log(10), log(70))      # intercept
+  sigma_b0 ~ dnorm(log(45), sd = 0.5)     # intercept
   sigma_b1 ~ dnorm(0, sd = 1)             # effect of male
   
-  psi ~ dunif(0, 1)
+  # site-specific inclusion
+  for (u in 1:U) {
+    
+    psi[u] ~ dunif(0, 1)
+    
+  }
+  
+  # vague sex ratio 
   psi.sex ~ dunif(0, 1)
   
   # calculate probabilities for closed likelihood
@@ -251,7 +295,7 @@ model.2.code <- nimbleCode({
   for (i in 1:M) {
     
     # inclusion
-    z[i] ~ dbern(psi)
+    z[i] ~ dbern(psi[site[i]])
     
     # sex indicator (every latent individual gets one value)
     sex[i] ~ dbern(psi.sex)
@@ -260,66 +304,69 @@ model.2.code <- nimbleCode({
     alpha2[i] <- alpha2_b0 + alpha2_b1 * sex[i]
     log(sigma[i]) <- sigma_b0 + sigma_b1 * sex[i]
     alpha1[i] <- -1 / sigma[i]
-      
-    # s - activity centers [M, 2, YR]
+    
+    # s - activity centers [M, 2]
     s[i, 1] ~ dunif(S.lim[site[i], 1, 1], S.lim[site[i], 2, 1])
     s[i, 2] ~ dunif(S.lim[site[i], 1, 2], S.lim[site[i], 2, 2])
-      
+    
     # vectorized trap calculations
     # d - distances between s and each trap j
     d[i, 1:J] <- sqrt(pow(s[i, 1] - trap.coords[1:J, 1, site[i]], 2) + 
                       pow(s[i, 2] - trap.coords[1:J, 2, site[i]], 2))
-      
+    
     # g - distance kernel
     g[i, 1:J] <- exp(alpha1[i] * d[i, 1:J])
+    
+    # loop over secondary occasions [K] (indexed by site)
+    for (k in 1:K[site[i]]) {
       
-      # loop over secondary occasions [K] (indexed by site)
-      for (k in 1:K[site[i]]) {
-        
-      # alpha0 - un-normalized baseline detection probability [i, k, t]
-      log(alpha0[i, k]) <- alpha0_b0 + alpha0_b1 * sex[i] + 
+      # alpha0 - baseline hazard of detection [i, k]
+      log(alpha0[i, k]) <- alpha0_b0 + alpha0_b1 * sex[i] +
                            alpha2[i] * prev.cap[i, k]
+      
+      # and loop over traps [J]
+      for (j in 1:J) {
         
-        # and loop over traps [J]
-        for (j in 1:J) {
+        # eta - un-normalized probability 
+        eta[i, k, j] <- alpha0[i, k] * g[i, j] *
           
-          # eta - un-normalized probability 
-          eta[i, k, j] <- alpha0[i, k] * g[i, j] *
-            
-            # inclusion
-            z[i] *
-            
-            # trap operation
-            trap.op[j, k, site[i]]
+          # inclusion
+          z[i] *
           
-          # p - normalized probabilities for categorical likelihood
-          p[i, k, j] <- eta[i, k, j] / (1 + sum(eta[i, k, 1:J]))  # sum over all traps
+          # trap operation
+          trap.op[j, k, site[i]] *
           
-        } # J
+          # trap deaths
+          trap.deaths[i, k]
         
-        # probability of not being captured as the complement of all trap-specific probs
-        p[i, k, J + 1] <- 1 - sum(p[i, k, 1:J])
+        # p - normalized probabilities for categorical likelihood
+        p[i, k, j] <- eta[i, k, j] / (1 + sum(eta[i, k, 1:J]))  # sum over all traps
         
-      } # K
+      } # J
+      
+      # probability of not being captured as the complement of all trap-specific probs
+      p[i, k, J + 1] <- 1 - sum(p[i, k, 1:J])
+      
+    } # K
     
   } # M
   
   # closed likelihood for observed individuals
   for (i in 1:n) {
-      
+    
     # loop over occasions
     for (k in 1:K[site[i]]) {
-        
+      
       ch[i, k] ~ dcat(p[i, k, 1:(J + 1)])
-        
+      
     } # K
     
   } # n
   
   # closed likelihood for non-detected individuals
   for (i in (n + 1):M) {
-      
-      zeroes[i] ~ dbern(1 - prod(1 - p[i, 1:K[site[i]], 1:J]))
+    
+    zeroes[i] ~ dbern(1 - prod(1 - p[i, 1:K[site[i]], 1:J]))
     
   } # (n + 1):M
   
@@ -327,25 +374,25 @@ model.2.code <- nimbleCode({
   # N
   # loop over sites
   for (u in 1:U) {
-      
-      # sex-specific N
-      # total recruited individuals
-      Nf[u] <- sum((z[1:M] == 1) * (site[1:M] == u) * (sex[1:M] == 0))
-      Nm[u] <- sum((z[1:M] == 1) * (site[1:M] == u) * (sex[1:M] == 1))
-      
-      # total available individuals
-      n.availf[u] <- sum((z[1:M] == 1) * (site[1:M] == u) * (sex[1:M] == 0))
-      n.availm[u] <- sum((z[1:M] == 1) * (site[1:M] == u) * (sex[1:M] == 1))
-      
-      # pooled
-      # total recruited individuals
-      N[u] <- Nf[u] + Nm[u]
-      
-      # total available individuals
-      n.avail[u] <- n.availf[u] + n.availm[u]
-      
-      # R - sex ratio (proportion male)
-      R[u] <- Nm[u] / N[u]
+    
+    # sex-specific N
+    # total recruited individuals
+    Nf[u] <- sum((z[1:M] == 1) * (site[1:M] == u) * (sex[1:M] == 0))
+    Nm[u] <- sum((z[1:M] == 1) * (site[1:M] == u) * (sex[1:M] == 1))
+    
+    # total available individuals
+    n.availf[u] <- sum((z[1:M] == 1) * (site[1:M] == u) * (sex[1:M] == 0))
+    n.availm[u] <- sum((z[1:M] == 1) * (site[1:M] == u) * (sex[1:M] == 1))
+    
+    # pooled
+    # total recruited individuals
+    N[u] <- Nf[u] + Nm[u]
+    
+    # total available individuals
+    n.avail[u] <- n.availf[u] + n.availm[u]
+    
+    # R - sex ratio (proportion male)
+    R[u] <- Nm[u] / N[u]
     
   } # U
   
@@ -365,11 +412,29 @@ inits <- list(
   psi = runif(2, 0, 1),
   s = cbind(runif(constant.list.1$M, -200, 200),
             runif(constant.list.1$M, -200, 200)),
-  alpha0_b0 = runif(1, -10, 1),
+  alpha0_b0 = runif(1, -5, 1),
   alpha0_b1 = rnorm(1, 0, 1),
   alpha2_b0 = rnorm(1, 0, 1),
   alpha2_b1 = rnorm(1, 0, 1),
   sigma_b0 = runif(1, log(10), log(70)),
+  sigma_b1 = rnorm(1, 0, 1),
+  sex = ifelse(is.na(data.list.1$sex) == F, NA, 0)
+  
+)
+
+inits.5 <- list(
+  
+  z = c(rep(NA, constant.list.1$n), rep(0, constant.list.1$M - constant.list.1$n)),
+  
+  # CLOSED
+  psi = runif(2, 0, 1),
+  s = cbind(runif(constant.list.1$M, -200, 200),
+            runif(constant.list.1$M, -200, 200)),
+  alpha0_b0 = rnorm(1, 0, 1),
+  alpha0_b1 = rnorm(1, 0, 1),
+  alpha2_b0 = rnorm(1, 0, 1),
+  alpha2_b1 = rnorm(1, 0, 1),
+  sigma_b0 = rnorm(1, log(45), sd = 0.5),
   sigma_b1 = rnorm(1, 0, 1),
   sex = ifelse(is.na(data.list.1$sex) == F, NA, 0)
   
@@ -383,6 +448,13 @@ monitor <- c(
   
   "alpha0_b0", "alpha0_b1", "alpha2_b0", "alpha2_b1", "sigma_b0", "sigma_b1",
   "psi", "N"
+  
+)
+
+monitor.5 <- c(
+  
+  "alpha0_b0", "alpha0_b1", "alpha2_b0", "alpha2_b1", "sigma_b0", "sigma_b1",
+  "psi", "psi.sex", "N", "R"
   
 )
 
@@ -412,12 +484,12 @@ compileNimble(model.1)
 model.1.comp <- compileNimble(model.1.mcmc, project = model.1)
 
 # ______________________________________________________________________________
-# 6b. MODEL 2 ----
+# 6b. MODEL 2 - BLOCK DETECTION ----
 # ______________________________________________________________________________
 
 model.2 <- nimbleModel(
   
-  code = model.2.code,
+  code = model.1.code,
   constants = constant.list.1,
   data = data.list.1,
   inits = inits,
@@ -425,14 +497,154 @@ model.2 <- nimbleModel(
   
 )
 
+# block sampling
 model.2.conf <- configureMCMC(model.2, monitors = monitor)
+model.2.conf$removeSamplers(c("alpha0_b0", "alpha2_b0", "sigma_b0"))
+model.2.conf$addSampler(c("alpha0_b0", "alpha2_b0", "sigma_b0"), 
+                        type = "RW_block",
+                        control = list("propCov" = matrix(c(0.5, -0.3, -0.05,
+                                                            -0.3, 0.3, 0.01,
+                                                            -0.05, 0.01, 0.01),
+                                                          nrow = 3),
+                                       adaptScaleOnly = T))       # on these shorter chains, best not to adapt the propCov
 
 # build model
-model.2.mcmc <- buildMCMC(conf = model.2.conf)
+model.2.mcmc <- buildMCMC(conf = model.2.conf, monitors = monitor)
 
 # compile model
 compileNimble(model.2)
 model.2.comp <- compileNimble(model.2.mcmc, project = model.2)
+
+# ______________________________________________________________________________
+# 6c. MODEL 3 - BLOCK DETECTION + AC ----
+# ______________________________________________________________________________
+
+model.3 <- nimbleModel(
+  
+  code = model.1.code,
+  constants = constant.list.1,
+  data = data.list.1,
+  inits = inits,
+  calculate = F
+  
+)
+
+
+model.3.conf <- configureMCMC(model.3, monitors = monitor)
+
+# block sampling
+# detection
+model.3.conf$removeSamplers(c("alpha0_b0", "alpha2_b0", "sigma_b0"))
+model.3.conf$addSampler(c("alpha0_b0", "alpha2_b0", "sigma_b0"), 
+                        type = "RW_block",
+                        control = list("propCov" = matrix(c(0.5, -0.3, -0.05,
+                                                            -0.3, 0.3, 0.01,
+                                                            -0.05, 0.01, 0.01),
+                                                          nrow = 3),
+                                       adaptScaleOnly = T))
+
+# activity centers
+model.3.conf$removeSamplers(c("s"))
+
+for(i in 1:constant.list.1$M) {
+  
+  snew = paste0("s[", i, ", 1:2]")
+  
+  model.3.conf$addSampler(snew, type = "RW_block", silent = T)
+  
+}
+
+# build model
+model.3.mcmc <- buildMCMC(conf = model.3.conf, monitors = monitor)
+
+# compile model
+compileNimble(model.3)
+model.3.comp <- compileNimble(model.3.mcmc, project = model.3)
+
+# ______________________________________________________________________________
+# 6d. MODEL 4 - BLOCK DETECTION (AF SLICE) + AC ----
+# ______________________________________________________________________________
+
+model.4 <- nimbleModel(
+  
+  code = model.1.code,
+  constants = constant.list.1,
+  data = data.list.1,
+  inits = inits,
+  calculate = F
+  
+)
+
+model.4.conf <- configureMCMC(model.4, monitors = monitor)
+
+# block sampling
+# detection
+model.4.conf$removeSamplers(c("alpha0_b0", "alpha2_b0", "sigma_b0"))
+model.4.conf$addSampler(c("alpha0_b0", "alpha2_b0", "sigma_b0"), 
+                        type = "AF_slice")
+
+# activity centers
+model.4.conf$removeSamplers(c("s"))
+
+for(i in 1:constant.list.1$M) {
+  
+  snew = paste0("s[", i, ", 1:2]")
+  
+  model.4.conf$addSampler(snew, type = "RW_block", silent = T)
+  
+}
+
+# build model
+model.4.mcmc <- buildMCMC(conf = model.4.conf, monitors = monitor)
+
+# compile model
+compileNimble(model.4)
+model.4.comp <- compileNimble(model.4.mcmc, project = model.4)
+
+# ______________________________________________________________________________
+# 6e. MODEL 5 - BLOCK DETECTION + AC + BETTER PRIORS ----
+# ______________________________________________________________________________
+
+model.5 <- nimbleModel(
+  
+  code = model.5.code,
+  constants = constant.list.1,
+  data = data.list.1,
+  inits = inits.5,
+  calculate = F
+  
+)
+
+model.5.conf <- configureMCMC(model.5, monitors = monitor.5)
+
+# block sampling
+# detection
+model.5.conf$removeSamplers(c("alpha0_b0", "alpha2_b0", "sigma_b0"))
+model.5.conf$addSampler(c("alpha0_b0", "alpha2_b0", "sigma_b0"), 
+                        type = "RW_block",
+                        control = list("propCov" = matrix(c(0.5, -0.3, -0.05,
+                                                            -0.3, 0.3, 0.01,
+                                                            -0.05, 0.01, 0.01),
+                                                          nrow = 3),
+                                       adaptScaleOnly = T))
+
+# activity centers
+model.5.conf$removeSamplers(c("s"))
+
+for(i in 1:constant.list.1$M) {
+  
+  snew = paste0("s[", i, ", 1:2]")
+  
+  model.5.conf$addSampler(snew, type = "RW_block", silent = T)
+  
+}
+
+# build model
+model.5.mcmc <- buildMCMC(conf = model.5.conf, monitors = monitor.5)
+
+# compile model
+compileNimble(model.5)
+model.5.comp <- compileNimble(model.5.mcmc, project = model.5)
 
 # ______________________________________________________________________________
 # 7. Time models ----
@@ -454,7 +666,7 @@ model.1.run <- runMCMC(
 )
 toc()
 
-# 724 s
+# 725 s
 
 # model 2
 tic()
@@ -469,7 +681,53 @@ model.2.run <- runMCMC(
 )
 toc()
 
-# 694 s
+# 597 s
+
+# model 3
+tic()
+model.3.run <- runMCMC(
+  
+  mcmc = model.3.comp,
+  niter = 10000,
+  nburnin = 5000,
+  nchains = 1,
+  samplesAsCodaMCMC = TRUE
+  
+)
+toc()
+
+# 509
+
+# model 4
+tic()
+model.4.run <- runMCMC(
+  
+  mcmc = model.4.comp,
+  niter = 10000,
+  nburnin = 5000,
+  nchains = 1,
+  samplesAsCodaMCMC = TRUE
+  
+)
+toc()
+
+# 1300 s
+
+# model 5
+tic()
+model.5.run <- runMCMC(
+  
+  mcmc = model.5.comp,
+  niter = 10000,
+  nburnin = 5000,
+  nchains = 1,
+  samplesAsCodaMCMC = TRUE
+  
+)
+toc()
+
+# 507
+
 
 # ______________________________________________________________________________
 # 8. Examine sampling ----
@@ -477,22 +735,58 @@ toc()
 # 8a. alpha0_b0 ----
 # ______________________________________________________________________________
 
-MCMCtrace(model.1.run, pdf = F, params = c("alpha0_b0"))    # both sampled poorly
+MCMCtrace(model.1.run, pdf = F, params = c("alpha0_b0"))    
 MCMCtrace(model.2.run, pdf = F, params = c("alpha0_b0")) 
+MCMCtrace(model.3.run, pdf = F, params = c("alpha0_b0"))
+MCMCtrace(model.4.run, pdf = F, params = c("alpha0_b0")) 
+MCMCtrace(model.5.run, pdf = F, params = c("alpha0_b0")) 
+
+MCMCsummary(model.1.run, params = c("alpha0_b0"))
+42 / 725
+
+MCMCsummary(model.2.run, params = c("alpha0_b0"))
+83 / 597
+
+MCMCsummary(model.3.run, params = c("alpha0_b0"))
+80 / 501
+
+MCMCsummary(model.4.run, params = c("alpha0_b0"))
+67 / 1326
+
+MCMCsummary(model.5.run, params = c("alpha0_b0"))
+113 / 507  # really good!
 
 # ______________________________________________________________________________
 # 8b. alpha2_b0 ----
 # ______________________________________________________________________________
 
-MCMCtrace(model.1.run, pdf = F, params = c("alpha2_b0"))    # both sampled poorly
-MCMCtrace(model.2.run, pdf = F, params = c("alpha2_b0"))    
+MCMCtrace(model.1.run, pdf = F, params = c("alpha2_b0"))    
+MCMCtrace(model.2.run, pdf = F, params = c("alpha2_b0")) 
+MCMCtrace(model.3.run, pdf = F, params = c("alpha2_b0")) 
+MCMCtrace(model.4.run, pdf = F, params = c("alpha2_b0")) 
+MCMCtrace(model.5.run, pdf = F, params = c("alpha2_b0")) 
+
+MCMCsummary(model.1.run, params = c("alpha2_b0"))
+MCMCsummary(model.2.run, params = c("alpha2_b0"))  # worse here
+MCMCsummary(model.3.run, params = c("alpha2_b0")) 
+MCMCsummary(model.4.run, params = c("alpha2_b0"))
+MCMCsummary(model.5.run, params = c("alpha2_b0"))  # really good
 
 # ______________________________________________________________________________
 # 8c. sigma_b0 ----
 # ______________________________________________________________________________
 
-MCMCtrace(model.1.run, pdf = F, params = c("sigma_b0"))    # both sampled poorly
+MCMCtrace(model.1.run, pdf = F, params = c("sigma_b0"))    
 MCMCtrace(model.2.run, pdf = F, params = c("sigma_b0"))    
+MCMCtrace(model.3.run, pdf = F, params = c("sigma_b0"))  
+MCMCtrace(model.4.run, pdf = F, params = c("sigma_b0"))  
+MCMCtrace(model.5.run, pdf = F, params = c("sigma_b0"))  
+
+MCMCsummary(model.1.run, params = c("sigma_b0"))
+MCMCsummary(model.2.run, params = c("sigma_b0"))    # worse here too
+MCMCsummary(model.3.run, params = c("sigma_b0")) 
+MCMCsummary(model.4.run, params = c("sigma_b0")) 
+MCMCsummary(model.5.run, params = c("sigma_b0"))    # about the same, but faster
 
 # ______________________________________________________________________________
 # 8d. N ----
@@ -502,10 +796,12 @@ MCMCtrace(model.2.run, pdf = F, params = c("sigma_b0"))
 # ______________________________________________________________________________
 
 MCMCtrace(model.1.run, pdf = F, params = c("N"))    
-MCMCtrace(model.2.run, pdf = F, params = c("N"))    # sampled much worse
+MCMCtrace(model.2.run, pdf = F, params = c("N"))   
+MCMCtrace(model.3.run, pdf = F, params = c("N"))  
+MCMCtrace(model.4.run, pdf = F, params = c("N"))  
+MCMCtrace(model.5.run, pdf = F, params = c("N"))  
 
-MCMCsummary(model.1.run, params = c("n.avail"))    
-MCMCtrace(model.2.run, pdf = F, params = c("n.avail"))
+MCMCsummary(model.1.run, params = c("N"))
+MCMCsummary(model.5.run, params = c("N"))
 
-# 02-14-2026 - solved the alpha2 issue
-# now I can actually use these models to improve sampling speed and efficiency
+MCMCsummary(model.5.run, params = c("R"))
