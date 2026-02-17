@@ -4,7 +4,7 @@
 # EMAIL: nathan.d.hooven@gmail.com
 # BEGAN: 14 Jan 2026
 # COMPLETED: 20 Jan 2026
-# LAST MODIFIED: 16 Feb 2026
+# LAST MODIFIED: 17 Feb 2026
 # R VERSION: 4.4.3
 
 # ______________________________________________________________________________
@@ -230,6 +230,23 @@ indiv.covs.M[[7]] <- ifelse(indiv.covs.M[[2]] == 4, 1, 0)
 first.year <- c(2, 2, 2, 1, 1, 1, 1, 2, 1, 2, 2, 2)
 
 # ______________________________________________________________________________
+# 6c. Year and site treatment variables ----
+# ______________________________________________________________________________
+
+# year treatment [YR]
+post1 <- c(0, 0, 1, 0)
+post2 <- c(0, 0, 0, 1)
+
+# site ret [U]
+site.ret <- c(1, 0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0)
+
+# site pil [U]
+site.pil <- c(0, 1, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0)
+
+# site cluster
+site.clust <- c(rep(1, 3), rep(2, 3), rep(3, 3), rep(4, 3))
+
+# ______________________________________________________________________________
 # 7. Build lists for model ----
 # ______________________________________________________________________________
 # 7a. Constants ----
@@ -244,8 +261,15 @@ constant.list <- list(
   U = 12,
   YR = 4,
   
+  # year-specific constants [YR]
+  post1 = post1,
+  post2 = post2,
+  
   # site-specific constants [U]
   S.areas = S.areas,
+  site.ret = site.ret,
+  site.pil = site.pil,
+  site.clust = site.clust,
   
   # K/session lookup [U, YR]
   K = occ.sess,
@@ -629,4 +653,3 @@ check_chs <- function (data.list, constant.list) {
 saveRDS(constant.list, "for_model/constants.rds")
 saveRDS(data.list, "for_model/data.rds")
 saveRDS(state.inits, "for_model/state_inits.rds")
-
