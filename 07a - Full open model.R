@@ -4,7 +4,7 @@
 # EMAIL: nathan.d.hooven@gmail.com
 # BEGAN: 06 Feb 2026
 # COMPLETED: 
-# LAST MODIFIED: 17 Feb 2026
+# LAST MODIFIED: 18 Feb 2026
 # R VERSION: 4.4.3
 
 # ______________________________________________________________________________
@@ -264,12 +264,7 @@ inits <- list(
   z = state.inits[[1]],       # change based on which chain we're running
   
   # CLOSED
-  s = array(c(cbind(runif(constant.list$M, -200, 200),   # INITS ARE WRONG
-                    runif(constant.list$M, -200, 200)),
-              cbind(runif(constant.list$M, -200, 200),
-                    runif(constant.list$M, -200, 200)),
-              cbind(runif(constant.list$M, -200, 200),
-                    runif(constant.list$M, -200, 200))),
+  s = array(runif(constant.list$M * constant.list$YR, -200, 200),   # INITS ARE WRONG
             dim = c(constant.list$M, 2, constant.list$YR)),
   alpha0_b0 = rnorm(1, 0, 1),
   alpha0_b1 = rnorm(1, 0, 1),
@@ -294,10 +289,9 @@ monitor <- c(
 )
 
 # ______________________________________________________________________________
-# 6. Set up and run model----
+# 6. Set up model----
 # ______________________________________________________________________________
 
-# set up model (this takes forever!)
 model.1 <- nimbleModel(
   
   code = model.code,
@@ -308,33 +302,58 @@ model.1 <- nimbleModel(
   
 )
 
+# ______________________________________________________________________________
+# 7. Configure block samplers ----
+# ______________________________________________________________________________
+
 model.1.conf <- configureMCMC(model.1, monitors = monitor)
 
-# block sampling
-# detection
-model.1.conf$removeSamplers(c("alpha0_b0", "alpha2_b0", "sigma_b0"))
-model.1.conf$addSampler(c("alpha0_b0", "alpha2_b0", "sigma_b0"), 
-                        type = "RW_block",
-                        control = list("propCov" = matrix(c(0.5, -0.3, -0.05,
-                                                            -0.3, 0.3, 0.01,
-                                                            -0.05, 0.01, 0.01),
-                                                          nrow = 3),
-                                       adaptScaleOnly = F))
+# ______________________________________________________________________________
+# 7a. Detection parameters ----
+# ______________________________________________________________________________
 
-# activity centers
+# we'll assume these are on a similar scale and bun-in is sufficient to adapt
+model.1.conf$removeSamplers(c("alpha0_b0", "alpha0_b1",
+                              "alpha2_b0", "alpha2_b1",
+                              "sigma_b0", "sigma_b1"))
+
+model.1.conf$addSampler(c("alpha0_b0", "alpha0_b1",
+                          "alpha2_b0", "alpha2_b1",
+                          "sigma_b0", "sigma_b1"), 
+                        type = "RW_block",
+                        control = list(adaptScaleOnly = F))
+
+# ______________________________________________________________________________
+# 7b. Activity centers ----
+# ______________________________________________________________________________
+
+# importantly, these can only be ones the model will sample
+# i.e., individuals at sites available for sampling
 model.1.conf$removeSamplers(c("s"))
+
+# sampled s
+samp.s.mat <- matrix(NA, nrow = constant.list$M, ncol = constant.list$YR)
 
 for(i in 1:constant.list$M) {
   
-  for (t in 1:constant.list$YR) {
+  for (t in (constant.list$first.year[constant.list$site[i]]):constant.list$YR) {
     
-    snew = paste0("s[", i, ", 1:2, ", t, "]")
-    
-    model.1.conf$addSampler(snew, type = "RW_block", silent = T)
+    samp.s.mat[i, t] <- paste0("s[", i, ", 1:2, ", t, "]")
+  
     
   }
   
 }
+
+# convert to vector and remove NAs
+samp.s <- as.vector(samp.s.mat)[is.na(as.vector(samp.s.mat)) == F]
+
+# add samplers
+model.1.conf$addSampler(samp.s, type = "RW_block", silent = T)
+
+# ______________________________________________________________________________
+# 8. Build and compile model ----
+# ______________________________________________________________________________
 
 # build model
 model.1.mcmc <- buildMCMC(conf = model.1.conf, monitors = monitor)
@@ -343,7 +362,10 @@ model.1.mcmc <- buildMCMC(conf = model.1.conf, monitors = monitor)
 compileNimble(model.1)
 model.1.comp <- compileNimble(model.1.mcmc, project = model.1)
 
-# run MCMC
+# ______________________________________________________________________________
+# 9. Run sampling ----
+# ______________________________________________________________________________
+
 model.1.run <- runMCMC(
   
   mcmc = model.1.comp,
