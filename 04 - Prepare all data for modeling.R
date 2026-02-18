@@ -4,7 +4,7 @@
 # EMAIL: nathan.d.hooven@gmail.com
 # BEGAN: 14 Jan 2026
 # COMPLETED: 20 Jan 2026
-# LAST MODIFIED: 17 Feb 2026
+# LAST MODIFIED: 18 Feb 2026
 # R VERSION: 4.4.3
 
 # ______________________________________________________________________________
@@ -118,10 +118,11 @@ S.areas <- S.area$area.rect
 
 # define how many individuals to add by site
 # ultimately this should be related to the total number we ever saw in a site
-# maybe start with 6 x n.u?
+# from the CBB-only model, we still had plenty to play with by the end
+# let's do x 5
 
 # totals by site
-n.aug.u <- n.u * 6
+n.aug.u <- n.u * 5
 
 n.aug = sum(n.aug.u)
 
