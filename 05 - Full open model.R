@@ -21,6 +21,11 @@ constant.list <- readRDS("for_model/constants.rds")
 data.list <- readRDS("for_model/data.rds")
 state.inits <- readRDS("for_model/state_inits.rds")
 
+# which state inits? 
+chain = 1
+
+state.inits <- state.inits[[chain]]
+
 # ______________________________________________________________________________
 # 3. Write code ----
 # ______________________________________________________________________________
@@ -62,12 +67,9 @@ cat_p <- nimbleFunction(
     
     # declare data types
     p <- nimNumeric(length = J + 1, value = 0.0)
+    eta <- nimNumeric(length = J, value = 0.0)
     eta.denom <- 1.0
     p.sum <- 0.0       # for subtracting, "trap 37"
-    
-    # numeric indicator
-    z2 <- 0
-    if (z == 2) z2 <- 1
     
     # detection
     alpha2 <- alpha2_b0 + alpha2_b1 * sex
@@ -87,10 +89,10 @@ cat_p <- nimbleFunction(
       d <- sqrt(dx * dx + dy * dy)
       
       # eta - un-normalized probability 
-      eta.j <- alpha0 * exp(alpha1 * d) *
+      eta[j] <- alpha0 * exp(alpha1 * d) *
         
         # inclusion (1 if state == 2, 0 otherwise)
-        z2 *
+        z *
         
         # trap operation
         trap.op[j] *
@@ -99,15 +101,20 @@ cat_p <- nimbleFunction(
         trap.deaths
       
       # add eta in the denominator to sum over all traps
-      eta.denom <- eta.denom + eta.j
+      eta.denom <- eta.denom + eta[j]
+      
+    } # J
+    
+    # normalize probabilities
+    for (j in 1:J) {
       
       # p - normalized probabilities for categorical likelihood
-      p[j] <- eta.j / eta.denom
+      p[j] <- eta[j] / eta.denom
       
       # increment p to the p.sum
       p.sum <- p.sum + p[j]
       
-    } # J
+    }
     
     # probability of not being captured as the complement of all trap-specific probs
     p[J + 1] <- 1.0 - p.sum
@@ -138,7 +145,7 @@ bern_p <- nimbleFunction(
     # individual data
     # scalars
     sex = double(0),        # sex[i]
-    z = double(0),          # z[i, t]
+    z = double(0),          # z2[i, t]
     
     # vectors
     s = double(1),            # [2] - s[i, 1:2, t]
@@ -159,13 +166,10 @@ bern_p <- nimbleFunction(
     
     # declare data types
     alpha0 <- nimNumeric(K, 0.0)
+    eta <- nimMatrix(0.0, nrow = K, ncol = J)
     p <- nimMatrix(0.0, nrow = K, ncol = J + 1)
     eta.denom <- nimNumeric(length = K, 0.0)
     p.sum <- nimNumeric(K, 0.0)       # for subtracting, "trap 37"
-    
-    # numeric indicator
-    z2 <- 0
-    if (z == 2) z2 <- 1
     
     # detection
     alpha2 <- alpha2_b0 + alpha2_b1 * sex
@@ -190,10 +194,10 @@ bern_p <- nimbleFunction(
         d <- sqrt(dx * dx + dy * dy)
         
         # eta - un-normalized probability 
-        eta.kj <- alpha0[k] * exp(alpha1 * d) *
+        eta[k, j] <- alpha0[k] * exp(alpha1 * d) *
           
           # inclusion (1 if state == 2, 0 otherwise)
-          z2 *
+          z *
           
           # trap operation
           trap.op[j, k] *
@@ -202,10 +206,15 @@ bern_p <- nimbleFunction(
           trap.deaths[k]
         
         # add eta in the denominator to sum over all traps
-        eta.denom[k] <- eta.denom[k] + eta.kj
+        eta.denom[k] <- eta.denom[k] + eta[k, j]
+        
+      } # J
+      
+      # normalize
+      for (j in 1:J) {
         
         # p - normalized probabilities for categorical likelihood
-        p[k, j] <- eta.kj / eta.denom[k]
+        p[k, j] <- eta[k, j] / eta.denom[k]
         
         # increment p to the p.sum
         p.sum[k] <- p.sum[k] + p[k, j]
@@ -244,37 +253,6 @@ bern_p <- nimbleFunction(
   
 )
 
-# count N and n.avail
-count_N <- nimbleFunction(
-  
-  run = function (
-    
-    z = double(1),
-    which.site = double(1),
-    M = integer(0)
-    
-  ) {
-    
-    counts <- nimNumeric(length = 2, value = 0.0)
-    
-    for (i in 1:M) {
-      
-      # N
-      counts[1] <- counts[1] + equals(z[i], 2) * which.site[i]
-      
-      # n.avail
-      counts[2] <- counts[2] + equals(z[i], 1) * which.site[i]
-      
-    }
-    
-    returnType(double(1))
-    
-    return(counts)
-    
-  }
-  
-)
-
 # ______________________________________________________________________________
 # 3b. Model ----
 # ______________________________________________________________________________
@@ -295,7 +273,7 @@ model.code <- nimbleCode({
   # gamma - probability of available individual being recruited [u, t]
   for (u in 1:U) {
     
-    for (t in (first.year[u] + 1):YR) {
+    for (t in 2:YR) {
       
       # logit constraint is important
       logit(gamma[u, t - 1]) <- log(N.all[u, 1, t - 1] + 1e-6) + 
@@ -320,7 +298,7 @@ model.code <- nimbleCode({
     # omega - transition matrix [3 x 3, U, YR - 1]
     # rows: state at t
     # columns: state at t + 1
-    for (t in (first.year[u]):(YR - 1)) {
+    for (t in 1:(YR - 1)) {
       
       # ENTERED
       omega[2, 1, u, t] <- 0.0
@@ -384,6 +362,9 @@ model.code <- nimbleCode({
     
     for (t in (first.year[site[i]]):YR) {
       
+      # z indicator
+      z2[i, t] <- step(z[i, t] - 1.5) * step(2.5 - z[i, t])
+      
       # s - activity centers [M, 2, YR]
       s[i, 1, t] ~ dunif(S.lim[site[i], 1, 1], S.lim[site[i], 2, 1])
       s[i, 2, t] ~ dunif(S.lim[site[i], 1, 2], S.lim[site[i], 2, 2])
@@ -400,7 +381,7 @@ model.code <- nimbleCode({
           sigma_b0 = sigma_b0,
           sigma_b1 = sigma_b1,
           sex = sex[i],
-          z = z[i, t],
+          z = z2[i, t],
           s = s[i, 1:2, t],
           prev.cap = prev.cap[i, k, t],
           trap.deaths = trap.deaths[i, k, t],
@@ -427,6 +408,9 @@ model.code <- nimbleCode({
     
     for (t in (first.year[site[i]]):YR) {
       
+      # z indicator
+      z2[i, t] <- step(z[i, t] - 1.5) * step(2.5 - z[i, t])
+      
       # s - activity centers [M, 2, YR]
       s[i, 1, t] ~ dunif(S.lim[site[i], 1, 1], S.lim[site[i], 2, 1])
       s[i, 2, t] ~ dunif(S.lim[site[i], 1, 2], S.lim[site[i], 2, 2])
@@ -441,7 +425,7 @@ model.code <- nimbleCode({
         sigma_b0 = sigma_b0,
         sigma_b1 = sigma_b1,
         sex = sex[i],
-        z = z[i, t],
+        z = z2[i, t],
         s = s[i, 1:2, t],
         prev.cap = prev.cap[i, 1:8, t],
         trap.deaths = trap.deaths[i, 1:8, t],
@@ -466,15 +450,10 @@ model.code <- nimbleCode({
   # N.all - counts of state 2 and state 1 individuals [U, 2, YR]
   for (u in 1:U) {
     
-    for (t in (first.year[u]):YR) {
+    for (t in 1:YR) {
       
-      N.all[u, 1:2, t] <- count_N(
-        
-        z = z[1:M, t],
-        which.site = which.site[1:M, u],
-        M = M
-        
-      )
+      N.all[u, 1, t] <- inprod(step(z[1:M, t] - 1.5) * step(2.5 - z[1:M, t]), which.site[1:M, u])
+      N.all[u, 2, t] <- inprod(step(z[1:M, t] - 0.5) * step(1.5 - z[1:M, t]), which.site[1:M, u])
       
     } # YR
     
@@ -488,14 +467,16 @@ model.code <- nimbleCode({
 
 inits <- list(
   
+  # STOCHASTIC
   # OPEN
   phi = runif(1, 0, 1),
   rho = runif(1, 0, 7),
   psi = runif(constant.list$U, 0, 1),
-  z = state.inits[[1]],       # change based on which chain we're running
+  psi.sex = runif(1, 0, 1),
+  z = state.inits,       
   
   # CLOSED
-  s = array(runif(constant.list$M * constant.list$YR, -200, 200),   # INITS ARE WRONG
+  s = array(runif(constant.list$M * constant.list$YR, -200, 200),   
             dim = c(constant.list$M, 2, constant.list$YR)),
   alpha0_b0 = rnorm(1, 0, 1),
   alpha0_b1 = rnorm(1, 0, 1),
@@ -529,7 +510,7 @@ model.1 <- nimbleModel(
   constants = constant.list,
   data = data.list,
   inits = inits,
-  calculate = F
+  calculate = T
   
 )  
 
@@ -545,7 +526,6 @@ length(model.1$getNodeNames(stochOnly = T))
 # functions
 cat_p_compiled <- compileNimble(cat_p)
 bern_p_compiled <- compileNimble(bern_p)
-count_N_compiled <- compileNimble(count_N)
 
 # model
 model.1.comp <- compileNimble(model.1)

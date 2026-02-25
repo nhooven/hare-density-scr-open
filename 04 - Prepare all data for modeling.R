@@ -478,10 +478,15 @@ make_init_states <- function (x) {
             x.1[1] == 1 & is.na(x.1[3]) == T ~ rbinom(1, 1, 0.5) + 1,  # 1 or 2
             
             # t1 == 2
-            x.1[1] == 2 & x.1[3] == 2 ~ 2,                             # 2
-            x.1[1] == 2 & x.1[3] == 3 ~ rbinom(1, 1, 0.5) + 2,         # 2 or 3
-            x.1[1] == 2 & is.na(x.1[3]) == T & x.1[4] != 2 ~ rbinom(1, 1, 0.5) + 2,   # 2 or 3
-            x.1[1] == 2 & is.na(x.1[3]) == T & x.1[4] == 2 ~ 2        # 2
+            x.1[1] == 2 & x.1[3] == 1 ~ 2,
+            x.1[1] == 2 & x.1[3] == 2 ~ 2,
+            x.1[1] == 2 & x.1[3] == 3 ~ rbinom(1, 1, 0.5) + 2,
+            x.1[1] == 2 & is.na(x.1[3]) & is.na(x.1[4]) ~ rbinom(1, 1, 0.5) + 2,  
+            x.1[1] == 2 & is.na(x.1[3]) & x.1[4] != 2 ~ rbinom(1, 1, 0.5) + 2,
+            x.1[1] == 2 & is.na(x.1[3]) & x.1[4] == 2 ~ 2,
+            
+            # catch-all
+            TRUE ~ 2
             
           )
           
@@ -501,7 +506,10 @@ make_init_states <- function (x) {
             x.1[2] == 2 & is.na(x.1[4]) == T ~ rbinom(1, 1, 0.5) + 2,  # 2 or 3
             
             # t2 == 3
-            x.1[2] == 3 ~ 3                                            # 3
+            x.1[2] == 3 ~ 3,                                            # 3
+            
+            # catch-all
+            TRUE ~ 2
             
           )
           
@@ -513,7 +521,10 @@ make_init_states <- function (x) {
             
             x.1[3] == 1 ~ 2,
             x.1[3] == 2 ~ rbinom(1, 1, 0.5) + 2,
-            x.1[3] == 3 ~ 3
+            x.1[3] == 3 ~ 3,
+            
+            # catch-all
+            TRUE ~ 2
             
           )
           
@@ -575,10 +586,15 @@ sum(apply(merge.1, 1, is.unsorted))
 sum(apply(merge.2, 1, is.unsorted))
 sum(apply(merge.3, 1, is.unsorted))
 
-# check that the number of NAs is correct (should be 1905)
+# check that the number of NAs (total known states) is correct (should be 1707)
 sum(is.na(state.inits[[1]]))
 sum(is.na(state.inits[[2]]))
 sum(is.na(state.inits[[3]]))
+
+# check that there are no NAs in latent positions
+sum(is.na(state.inits[[1]][is.na(open.ch.all)]))
+sum(is.na(state.inits[[2]][is.na(open.ch.all)]))
+sum(is.na(state.inits[[3]][is.na(open.ch.all)]))
 
 # ______________________________________________________________________________
 # 8. Check likelihood-breaking in the closed CH ----
