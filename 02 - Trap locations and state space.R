@@ -1,4 +1,4 @@
-# PROJECT: Closed multi-session SCR
+# PROJECT: Open multi-session SCR
 # SCRIPT: 02 - Trap locations and state space
 # AUTHOR: Nate Hooven
 # EMAIL: nathan.d.hooven@gmail.com

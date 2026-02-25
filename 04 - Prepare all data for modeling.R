@@ -1,10 +1,10 @@
-# PROJECT: Closed multi-session SCR
+# PROJECT: Open multi-session SCR
 # SCRIPT: 04 - Prepare all data for modeling
 # AUTHOR: Nate Hooven
 # EMAIL: nathan.d.hooven@gmail.com
 # BEGAN: 14 Jan 2026
 # COMPLETED: 20 Jan 2026
-# LAST MODIFIED: 18 Feb 2026
+# LAST MODIFIED: 25 Feb 2026
 # R VERSION: 4.4.3
 
 # ______________________________________________________________________________
@@ -248,6 +248,19 @@ site.pil <- c(0, 1, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0)
 site.clust <- c(rep(1, 3), rep(2, 3), rep(3, 3), rep(4, 3))
 
 # ______________________________________________________________________________
+# 6d. Site indicator for N counting function ----
+# ______________________________________________________________________________
+
+# which site [M, U]
+which.site <- matrix(0, nrow = M, ncol = U)
+
+for (i in 1:M) {
+  
+  which.site[i, indiv.covs.M[[1]][i]] <- 1
+  
+}
+
+# ______________________________________________________________________________
 # 7. Build lists for model ----
 # ______________________________________________________________________________
 # 7a. Constants ----
@@ -281,21 +294,7 @@ constant.list <- list(
   # indices for each individual [M]
   site = indiv.covs.M[[1]],
   cluster = indiv.covs.M[[2]],
-  ft = indiv.covs.M[[7]]
-  
-)
-
-# ______________________________________________________________________________
-# 7b. Data ----
-# ______________________________________________________________________________  
-  
-data.list <- list(
-  
-  # open capture histories (states - z) [M, YR]
-  z = open.ch.all,
-  
-  # closed capture histories [n, max(K), YR]
-  ch = closed.ch,
+  ft = indiv.covs.M[[7]],
   
   # previous capture [M, max(K), YR]
   prev.cap = prev.cap.1,
@@ -311,6 +310,23 @@ data.list <- list(
   
   # trap coordinates [J, 2, U]
   trap.coords = trap.coords,
+  
+  # site indicator
+  which.site = which.site
+  
+)
+
+# ______________________________________________________________________________
+# 7b. Data ----
+# ______________________________________________________________________________  
+  
+data.list <- list(
+  
+  # open capture histories (states - z) [M, YR]
+  z = open.ch.all,
+  
+  # closed capture histories [n, max(K), YR]
+  ch = closed.ch,
   
   # individual data [M]
   ret = indiv.covs.M[[3]],
