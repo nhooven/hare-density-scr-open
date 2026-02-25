@@ -392,7 +392,10 @@ make_init_states <- function (x) {
           # t1 == 2
           x.1[1] == 2 & x.1[3] == 2 ~ 2,                             # 2
           x.1[1] == 2 & x.1[3] == 3 ~ rbinom(1, 1, 0.5) + 2,         # 2 or 3
-          x.1[1] == 2 & is.na(x.1[3]) == T ~ rbinom(1, 1, 0.5) + 2   # 2 or 3
+          x.1[1] == 2 & is.na(x.1[3]) == T ~ rbinom(1, 1, 0.5) + 2,   # 2 or 3
+          
+          # catch-all
+          TRUE ~ 2
           
         )
         
@@ -402,6 +405,7 @@ make_init_states <- function (x) {
         x.1[3] <- case_when(
           
           # t2 == 1
+          x.1[2] == 1 & x.1[4] == 1 ~ 1,                             # 1
           x.1[2] == 1 & x.1[4] == 2 ~ rbinom(1, 1, 0.5) + 1,         # 1 or 2
           x.1[2] == 1 & x.1[4] == 3 ~ 2,                             # 2
           x.1[2] == 1 & is.na(x.1[4]) == T ~ rbinom(1, 1, 0.5) + 1,  # 1 or 2
@@ -412,7 +416,10 @@ make_init_states <- function (x) {
           x.1[2] == 2 & is.na(x.1[4]) == T ~ rbinom(1, 1, 0.5) + 2,  # 2 or 3
           
           # t2 == 3
-          x.1[2] == 3 ~ 3                                            # 3
+          x.1[2] == 3 ~ 3,                                            # 3
+          
+          # catch-all
+          TRUE ~ 2
           
         )
         
@@ -424,7 +431,10 @@ make_init_states <- function (x) {
           
           x.1[3] == 1 ~ 2,
           x.1[3] == 2 ~ rbinom(1, 1, 0.5) + 2,
-          x.1[3] == 3 ~ 3
+          x.1[3] == 3 ~ 3,
+          
+          # catch-all
+          TRUE ~ 2
           
         )
         
@@ -564,6 +574,11 @@ merge.3 <- merge_states(open.ch.all, state.inits = state.inits[[3]])
 sum(apply(merge.1, 1, is.unsorted))
 sum(apply(merge.2, 1, is.unsorted))
 sum(apply(merge.3, 1, is.unsorted))
+
+# check that the number of NAs is correct (should be 1905)
+sum(is.na(state.inits[[1]]))
+sum(is.na(state.inits[[2]]))
+sum(is.na(state.inits[[3]]))
 
 # ______________________________________________________________________________
 # 8. Check likelihood-breaking in the closed CH ----
