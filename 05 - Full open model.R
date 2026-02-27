@@ -492,6 +492,10 @@ inits <- list(
 # 5. Parameters to monitor ----
 # ______________________________________________________________________________
 
+# will need to include sex in the final model, along with the activity centers
+# can probably drop gamma
+# N.all can be split, and we won't need the available after tuning the augmented guys
+
 monitor <- c(
   
   "psi", "phi", "rho", "gamma",
@@ -513,11 +517,6 @@ model.1 <- nimbleModel(
   calculate = T
   
 )  
-
-# check nodes
-length(model.1$getNodeNames())
-length(model.1$getNodeNames(determOnly = T))
-length(model.1$getNodeNames(stochOnly = T))
 
 # ______________________________________________________________________________
 # 7. Compile functions and model ----
@@ -548,11 +547,33 @@ model.1.conf$removeSamplers(c("alpha0_b0", "alpha0_b1",
                               "alpha2_b0", "alpha2_b1",
                               "sigma_b0", "sigma_b1"))
 
-model.1.conf$addSampler(c("alpha0_b0", "alpha0_b1",
-                          "alpha2_b0", "alpha2_b1",
-                          "sigma_b0", "sigma_b1"), 
-                        type = "RW_block",
-                        control = list(adaptScaleOnly = F))
+model.1.conf$addSampler(
+  
+  c("alpha0_b0", "alpha0_b1",
+    "alpha2_b0", "alpha2_b1",
+    "sigma_b0", "sigma_b1"), 
+  
+  type = "RW_block",
+  control = list(
+    
+    "propCov" = matrix(
+      
+      data = c(0.01, -0.01, -0.01, 0.01, -0.02, 0.01,
+               -0.01, 0.03, 0.01, -0.02, 0.01, -0.01,
+               -0.01, 0.01, 0.01, -0.01, 0.01, -0.01, 
+               0.01, -0.02, -0.01, 0.02, 0.01, -0.01,
+               -0.01, 0.01, 0.01, 0.01, 0.01, -0.01,
+               0.01, -0.01, 0.01, -0.01, -0.01, 0.01),
+      
+      nrow = 6,
+      ncol = 6,
+      byrow = T
+      
+    ),
+    
+    adaptScaleOnly = F
+    
+    ))
 
 # ______________________________________________________________________________
 # 10. Build MCMC from configuration ----
