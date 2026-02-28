@@ -542,38 +542,70 @@ model.1.conf <- configureMCMC(model.1, monitors = monitor)
 # 9a. Detection parameters ----
 # ______________________________________________________________________________
 
-# we'll assume these are on a similar scale and burn-in is sufficient to adapt
+# proposed covariance matrices
+# alpha0 and alpha2
+propCov.alpha <- matrix(
+  
+  c(0.013, -0.013, -0.008, 0.007,
+    -0.013, 0.025, 0.008, -0.017,
+    -0.008, 0.008, 0.009, -0.008,
+    0.007, -0.017, -0.0078, 0.022),
+  
+  nrow = 4,
+  ncol = 4,
+  byrow = T
+  
+)
+
+# sigma
+propCov.sigma <- matrix(
+  
+  c(0.002, -0.0024,
+    -0.002, 0.004),
+  
+  nrow = 2,
+  ncol = 2,
+  byrow = T
+  
+)
+
+# check positive-definiteness
+eigen(propCov.alpha)$values
+eigen(propCov.sigma)$values
+
+# check condition
+kappa(propCov.alpha)
+kappa(propCov.sigma)
+
 model.1.conf$removeSamplers(c("alpha0_b0", "alpha0_b1",
                               "alpha2_b0", "alpha2_b1",
                               "sigma_b0", "sigma_b1"))
 
 model.1.conf$addSampler(
   
-  c("alpha0_b0", "alpha0_b1",
-    "alpha2_b0", "alpha2_b1",
-    "sigma_b0", "sigma_b1"), 
+  c("alpha0_b0", "alpha0_b1", "alpha2_b0", "alpha2_b1"), 
   
   type = "RW_block",
   control = list(
     
-    "propCov" = matrix(
-      
-      data = c(0.01, -0.01, -0.01, 0.01, -0.02, 0.01,
-               -0.01, 0.03, 0.01, -0.02, 0.01, -0.01,
-               -0.01, 0.01, 0.01, -0.01, 0.01, -0.01, 
-               0.01, -0.02, -0.01, 0.02, 0.01, -0.01,
-               -0.01, 0.01, 0.01, 0.01, 0.01, -0.01,
-               0.01, -0.01, 0.01, -0.01, -0.01, 0.01),
-      
-      nrow = 6,
-      ncol = 6,
-      byrow = T
-      
-    ),
+    "propCov" = propCov.alpha,
     
     adaptScaleOnly = F
     
     ))
+
+model.1.conf$addSampler(
+  
+  c("sigma_b0", "sigma_b1"), 
+  
+  type = "RW_block",
+  control = list(
+    
+    "propCov" = propCov.sigma,
+    
+    adaptScaleOnly = F
+    
+  ))
 
 # ______________________________________________________________________________
 # 10. Build MCMC from configuration ----
