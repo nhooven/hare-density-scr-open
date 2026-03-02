@@ -4,7 +4,7 @@
 # EMAIL: nathan.d.hooven@gmail.com
 # BEGAN: 14 Jan 2026
 # COMPLETED: 20 Jan 2026
-# LAST MODIFIED: 27 Feb 2026
+# LAST MODIFIED: 02 Mar 2026
 # R VERSION: 4.4.3
 
 # ______________________________________________________________________________
@@ -126,17 +126,17 @@ n.aug.u <- n.u * 5
 
 # modify after initial modeling results
 n.aug.u[1] = n.aug.u[1] - 150
-n.aug.u[2] = n.aug.u[2] + 100
-n.aug.u[3] = n.aug.u[3] - 50
-n.aug.u[4] = n.aug.u[4] - 150
-n.aug.u[5] = n.aug.u[5] - 150
-n.aug.u[6] = n.aug.u[6] - 50
-n.aug.u[7] = n.aug.u[7] - 50
-n.aug.u[8] = n.aug.u[8]       # no change
-n.aug.u[9] = n.aug.u[9] - 50
+n.aug.u[2] = n.aug.u[2] + 200
+n.aug.u[3] = n.aug.u[3] - 100
+n.aug.u[4] = n.aug.u[4] - 250
+n.aug.u[5] = n.aug.u[5] - 200
+n.aug.u[6] = n.aug.u[6] - 75
+n.aug.u[7] = n.aug.u[7] - 75
+n.aug.u[8] = n.aug.u[8] - 25    
+n.aug.u[9] = n.aug.u[9] - 75
 n.aug.u[10] = n.aug.u[10] + 50
-n.aug.u[11] = n.aug.u[11] + 50
-n.aug.u[12] = n.aug.u[12] + 100
+n.aug.u[11] = n.aug.u[11] + 25
+n.aug.u[12] = n.aug.u[12] + 200
 
 n.aug = sum(n.aug.u)
 
