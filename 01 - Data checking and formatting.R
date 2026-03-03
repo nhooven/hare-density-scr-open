@@ -4,7 +4,7 @@
 # EMAIL: nathan.d.hooven@gmail.com
 # BEGAN: 12 Jan 2026
 # COMPLETED: 29 Jan 2026
-# LAST MODIFIED: 14 Feb 2026
+# LAST MODIFIED: 03 Mar 2026
 # R VERSION: 4.4.3
 
 # ______________________________________________________________________________
@@ -38,6 +38,7 @@ open.ch <- read.csv("trapping_data/open_ch.csv")
 open.ch <- open.ch %>%
   
   dplyr::select(MRID,
+                Tag.,
                 Site,
                 Sex,
                 PRE1,
@@ -222,10 +223,10 @@ check_mrid <- function (focalID) {
   focal.indices <- site.lookup %>% filter(sessionID == focalID)
   
   # keep correct column (based on primary occasion)
-  if (focal.indices$year == 1) {open.ch.1 <- open.ch[ , c(1:3, 4)]}
-  if (focal.indices$year == 2) {open.ch.1 <- open.ch[ , c(1:3, 5)]}
-  if (focal.indices$year == 3) {open.ch.1 <- open.ch[ , c(1:3, 6)]}
-  if (focal.indices$year == 4) {open.ch.1 <- open.ch[ , c(1:3, 7)]}
+  if (focal.indices$year == 1) {open.ch.1 <- open.ch[ , c(1, 3:4, 5)]}
+  if (focal.indices$year == 2) {open.ch.1 <- open.ch[ , c(1, 3:4, 6)]}
+  if (focal.indices$year == 3) {open.ch.1 <- open.ch[ , c(1, 3:4, 7)]}
+  if (focal.indices$year == 4) {open.ch.1 <- open.ch[ , c(1, 3:4, 8)]}
   
   # change name to "y" for generality
   names(open.ch.1)[4] <- "y"
@@ -273,7 +274,7 @@ check_mrid <- function (focalID) {
       MRID = iMR.niIndivs,
       which.list = "iMR.niIndivs",
       where.else = ifelse(length(open.ch.1$y[which(open.ch.1$MRID %in% iMR.niIndivs)]) > 0,
-                          open.ch.1$y[which(open.ch.1$MRID %in% iMR.niIndivs)],
+                          open.ch.1$Site[which(open.ch.1$MRID %in% iMR.niIndivs)],
                           NA)
       
     )
@@ -388,6 +389,8 @@ for (i in 1:41) {
 # split open CH by MRID x Site
 open.ch.1 <- open.ch %>% mutate(MRID.Site = paste0(MRID, ".", Site))
 open.ch.split <- split(open.ch.1, f = ~ MRID.Site)
+
+
 
 # ______________________________________________________________________________
 # 6a. Function to find closed CHs from MR data ----
@@ -699,6 +702,10 @@ indiv.covs <- list(cov.site, cov.cluster, cov.ret, cov.pil, cov.sex, cov.indivID
 
 # any "escaped" hares that did not receive an AnimalID will also induce a 0.5 here
 
+# list of MRIDs that did not receive a permanent tag
+# these will be checked and any captures will receive a 0.5
+untagged.MRIDs <- open.ch$MRID[open.ch$Tag. == "N"]
+
 # ______________________________________________________________________________
 
 trap.op.list <- list()
@@ -731,9 +738,10 @@ for (i in 1:12) {
       # unlist and assign
       focal.mr.vect <- unlist(focal.mr)
       
-      focal.mr.vect[which(focal.mr.vect %notin% c("X", "C", "B", "E"))] <- 1
-      focal.mr.vect[which(focal.mr.vect %in% c("X"))] <- 0
-      focal.mr.vect[which(focal.mr.vect %in% c("C", "B", "E"))] <- 0.5
+      focal.mr.vect[which(focal.mr.vect %notin% c("X", "C", "B", "E"))] <- 1  # trap available
+      focal.mr.vect[which(focal.mr.vect %in% c("X"))] <- 0                    # trap closed
+      focal.mr.vect[which(focal.mr.vect %in% c("C", "B", "E"))] <- 0.5        # trap partially closed
+      focal.mr.vect[which(focal.mr.vect %in% untagged.MRIDs)] <- 0.5          # trap partially closed
       
       trap.op.array[ , , y] <- matrix(as.numeric(focal.mr.vect),
                                       nrow = 36,
@@ -771,25 +779,54 @@ occ.sess <- as.matrix(
   )
 
 # ______________________________________________________________________________
-# 11. Write to file ----
+# 11. Ensure that we don't keep values for untagged animals ----
 # ______________________________________________________________________________
 
-# open CH
-open.ch.3 <- as.matrix(open.ch.2[ , c(4:7)])
+# which indices in the ordered open CH are untagged?
+untagged.indices <- which(open.ch.2$MRID %in% untagged.MRIDs)
 
+# open ch
+open.ch.3 <- as.matrix(open.ch.2[-untagged.indices, c(4:7)])
+
+# closed ch
+all.indiv.ch.arr.1 <- all.indiv.ch.arr[-untagged.indices, , ]
+
+# previous capture
+prev.cap.arr.1 <- prev.cap.arr[-untagged.indices, , ]
+
+# trap deaths
+trap.death.arr.1 <- trap.death.arr[-untagged.indices, , ]
+
+# individual covariates
+indiv.covs.1 <- list(
+  
+  indiv.covs[[1]][-untagged.indices],    # site
+  indiv.covs[[2]][-untagged.indices],    # cluster
+  indiv.covs[[3]][-untagged.indices, ],  # ret
+  indiv.covs[[4]][-untagged.indices, ],  # pil
+  indiv.covs[[5]][-untagged.indices],    # sex
+  indiv.covs[[5]][-untagged.indices]     # indivID (probably don't need it)
+  
+)
+
+# ______________________________________________________________________________
+# 12. Write to file ----
+# ______________________________________________________________________________
+
+# open ch
 saveRDS(open.ch.3, "for_model/open_ch.rds")
 
 # closed CH
-saveRDS(all.indiv.ch.arr, "for_model/closed_ch.rds")
+saveRDS(all.indiv.ch.arr.1, "for_model/closed_ch.rds")
 
 # previous capture
-saveRDS(prev.cap.arr, "for_model/prev_cap.rds")
+saveRDS(prev.cap.arr.1, "for_model/prev_cap.rds")
 
 # trap deaths
-saveRDS(trap.death.arr, "for_model/trap_deaths.rds")
+saveRDS(trap.death.arr.1, "for_model/trap_deaths.rds")
 
 # individual covariates
-saveRDS(indiv.covs, "for_model/indiv_covs.rds")
+saveRDS(indiv.covs.1, "for_model/indiv_covs.rds")
 
 # trap operation
 saveRDS(trap.op.list, "for_model/trap_op.rds")
