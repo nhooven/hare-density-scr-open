@@ -4,7 +4,7 @@
 # EMAIL: nathan.d.hooven@gmail.com
 # BEGAN: 14 Jan 2026
 # COMPLETED: 20 Jan 2026
-# LAST MODIFIED: 02 Mar 2026
+# LAST MODIFIED: 04 Mar 2026
 # R VERSION: 4.4.3
 
 # ______________________________________________________________________________
@@ -126,7 +126,7 @@ n.aug.u <- n.u * 5
 
 # modify after initial modeling results
 n.aug.u[1] = n.aug.u[1] - 150
-n.aug.u[2] = n.aug.u[2] + 200
+n.aug.u[2] = n.aug.u[2] + 50
 n.aug.u[3] = n.aug.u[3] - 100
 n.aug.u[4] = n.aug.u[4] - 250
 n.aug.u[5] = n.aug.u[5] - 200
@@ -135,8 +135,8 @@ n.aug.u[7] = n.aug.u[7] - 75
 n.aug.u[8] = n.aug.u[8] - 25    
 n.aug.u[9] = n.aug.u[9] - 75
 n.aug.u[10] = n.aug.u[10] + 50
-n.aug.u[11] = n.aug.u[11] + 25
-n.aug.u[12] = n.aug.u[12] + 200
+n.aug.u[11] = n.aug.u[11] + 125
+n.aug.u[12] = n.aug.u[12] + 300
 
 n.aug = sum(n.aug.u)
 
@@ -192,17 +192,22 @@ aug.sex <- rep(NA, times = n.aug)
 # treatment
 aug.ret <- matrix(NA, nrow = n.aug, ncol = 4)
 aug.pil <- matrix(NA, nrow = n.aug, ncol = 4)
+aug.post1 <- matrix(NA, nrow = n.aug, ncol = 4)
+aug.post2 <- matrix(NA, nrow = n.aug, ncol = 4)
 
-# add zeroes for pre-treatment
-aug.ret[ , c(1:2)] <- 0
-aug.pil[ , c(1:2)] <- 0
+# treatment sites
+aug.ret[which(aug.siteID %in% c(1, 5, 8, 10)), ] <- 1
+aug.ret[which(aug.siteID %notin% c(1, 5, 8, 10)), ] <- 0
 
-# post
-aug.ret[which(aug.siteID %in% c(1, 5, 8, 10)), c(3:4)] <- 1
-aug.ret[which(aug.siteID %notin% c(1, 5, 8, 10)), c(3:4)] <- 0
+aug.pil[which(aug.siteID %in% c(2, 4, 7, 11)), ] <- 1
+aug.pil[which(aug.siteID %notin% c(2, 4, 7, 11)), ] <- 0
 
-aug.pil[which(aug.siteID %in% c(2, 4, 7, 11)), c(3:4)] <- 1
-aug.pil[which(aug.siteID %notin% c(2, 4, 7, 11)), c(3:4)] <- 0
+# post treatment indicators 
+aug.post1[ , 3] <- 1
+aug.post1[ , c(1:2, 4)] <- 0
+
+aug.post2[ , 4] <- 1
+aug.post2[ , c(1:3)] <- 0
 
 # bind all indiv covs together
 indiv.covs.M <- list(
@@ -219,50 +224,27 @@ indiv.covs.M <- list(
   # pil
   rbind(indiv.covs[[4]], aug.pil),
   
+  # post1
+  rbind(indiv.covs[[5]], aug.post1),
+  
+  # post2
+  rbind(indiv.covs[[6]], aug.post2),
+  
   # sex
-  c(indiv.covs[[5]], aug.sex),
+  c(indiv.covs[[7]], aug.sex)
   
-  # indivID
-  c(indiv.covs[[6]], (length(indiv.covs[[6]]) + 1):M)
-  
-)
+  )
 
 # ______________________________________________________________________________
 # 6. Additional covariates / constants ----
 # ______________________________________________________________________________
-# 6a. Forest type covariate ----
-
-# 0 for SFL, 1 for XMC
-
-# ______________________________________________________________________________
-
-indiv.covs.M[[7]] <- ifelse(indiv.covs.M[[2]] == 4, 1, 0)
-
-# ______________________________________________________________________________
-# 6b. "First year" index for each site ----
+# 6a. "First year" index for each site ----
 # ______________________________________________________________________________
 
 first.year <- c(2, 2, 2, 1, 1, 1, 1, 2, 1, 2, 2, 2)
 
 # ______________________________________________________________________________
-# 6c. Year and site treatment variables ----
-# ______________________________________________________________________________
-
-# year treatment [YR]
-post1 <- c(0, 0, 1, 0)
-post2 <- c(0, 0, 0, 1)
-
-# site ret [U]
-site.ret <- c(1, 0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0)
-
-# site pil [U]
-site.pil <- c(0, 1, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0)
-
-# site cluster
-site.clust <- c(rep(1, 3), rep(2, 3), rep(3, 3), rep(4, 3))
-
-# ______________________________________________________________________________
-# 6d. Site indicator for N counting function ----
+# 6b. Site indicator for N counting function ----
 # ______________________________________________________________________________
 
 # which site [M, U]
@@ -289,16 +271,6 @@ constant.list <- list(
   U = 12,
   YR = 4,
   
-  # year-specific constants [YR]
-  post1 = post1,
-  post2 = post2,
-  
-  # site-specific constants [U]
-  S.areas = S.areas,
-  site.ret = site.ret,
-  site.pil = site.pil,
-  site.clust = site.clust,
-  
   # K/session lookup [U, YR]
   K = occ.sess,
   
@@ -308,7 +280,6 @@ constant.list <- list(
   # indices for each individual [M]
   site = indiv.covs.M[[1]],
   cluster = indiv.covs.M[[2]],
-  ft = indiv.covs.M[[7]],
   
   # previous capture [M, max(K), YR]
   prev.cap = prev.cap.1,
@@ -345,7 +316,9 @@ data.list <- list(
   # individual data [M]
   ret = indiv.covs.M[[3]],
   pil = indiv.covs.M[[4]],
-  sex = indiv.covs.M[[5]],
+  post1 = indiv.covs.M[[5]],
+  post2 = indiv.covs.M[[6]],
+  sex = indiv.covs.M[[7]],
   
   # data augmentation [M, YR]
   zeroes = zeroes
@@ -566,6 +539,43 @@ state.inits[[1]] <- t(apply(open.ch.all, 1, make_init_states))
 state.inits[[2]] <- t(apply(open.ch.all, 1, make_init_states))
 state.inits[[3]] <- t(apply(open.ch.all, 1, make_init_states))
 
+# if any individuals whose site's first.year == 2 have a 3 for t == 2,
+# this breaks the logic in the model. Flip all inits with this case to 2
+# these are sites 1, 2, 3, 8, 10, 11, 12 btw
+which.first.2 <- which(constant.list$site %in% c(1:3, 8, 10:12))
+
+# function to do this cleanly
+flip_impossible_t2 <- function (inits) {
+  
+  inits.1 <- inits
+  
+  for (i in which.first.2) {
+    
+    # force to be 2
+    if (is.na(inits[i, 2]) == F & inits[i, 2] == 3) {
+      
+      inits.1[i, 2] <- 2
+      
+    }
+    
+  }
+  
+  return(inits.1)
+  
+}
+
+# use function
+state.inits.1 <- list()
+
+state.inits.1[[1]] <- flip_impossible_t2(state.inits[[1]])
+state.inits.1[[2]] <- flip_impossible_t2(state.inits[[2]])
+state.inits.1[[3]] <- flip_impossible_t2(state.inits[[3]])
+
+# check that it did the correct thing
+sum(state.inits.1[[1]][which.first.2, 2] == 3, na.rm = T)
+sum(state.inits.1[[2]][which.first.2, 2] == 3, na.rm = T)
+sum(state.inits.1[[3]][which.first.2, 2] == 3, na.rm = T)
+
 # check validity
 # merge states function
 merge_states <- function (open.ch.all, state.inits) {
@@ -600,7 +610,7 @@ sum(apply(merge.1, 1, is.unsorted))
 sum(apply(merge.2, 1, is.unsorted))
 sum(apply(merge.3, 1, is.unsorted))
 
-# check that the number of NAs (total known states) is correct (should be 1707)
+# check that the number of NAs (total known states) is correct (should be 1640)
 sum(is.na(state.inits[[1]]))
 sum(is.na(state.inits[[2]]))
 sum(is.na(state.inits[[3]]))
@@ -714,4 +724,4 @@ check_chs <- function (data.list, constant.list) {
 
 saveRDS(constant.list, "for_model/constants.rds")
 saveRDS(data.list, "for_model/data.rds")
-saveRDS(state.inits, "for_model/state_inits.rds")
+saveRDS(state.inits.1, "for_model/state_inits.rds")   # must be state.inits.1!

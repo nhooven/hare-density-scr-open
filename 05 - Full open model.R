@@ -4,7 +4,7 @@
 # EMAIL: nathan.d.hooven@gmail.com
 # BEGAN: 06 Feb 2026
 # COMPLETED: 
-# LAST MODIFIED: 02 Mar 2026
+# LAST MODIFIED: 04 Mar 2026
 # R VERSION: 4.4.3
 
 # ______________________________________________________________________________
@@ -260,7 +260,7 @@ bern_p <- nimbleFunction(
 model.code <- nimbleCode({
   
   # ___________________________
-  # OPEN STATE-SPACE SUB-MODEL
+  # OPEN SUB-MODEL
   # ___________________________
   
   # demographic parameter priors
@@ -273,7 +273,8 @@ model.code <- nimbleCode({
   # gamma - probability of available individual being recruited [u, t]
   for (u in 1:U) {
     
-    for (t in 2:YR) {
+    # 2nd year (by site) to year 4
+    for (t in (first.year[u] + 1):YR) {
       
       # logit constraint is important
       logit(gamma[u, t - 1]) <- log(N.all[u, 1, t - 1] + 1e-6) + 
@@ -291,6 +292,7 @@ model.code <- nimbleCode({
     psi[u] ~ dunif(0, 1)
     
     # omega1 - initial states [1:3, U]
+    # this will be for the first year BY SITE
     omega1[1, u] <- 1 - psi[u]          # available with p = 1 - psi
     omega1[2, u] <- psi[u]              # recruited with p = psi
     omega1[3, u] <- 0.0                 # cannot start dead
@@ -298,7 +300,7 @@ model.code <- nimbleCode({
     # omega - transition matrix [3 x 3, U, YR - 1]
     # rows: state at t
     # columns: state at t + 1
-    for (t in 1:(YR - 1)) {
+    for (t in (first.year[u]):(YR - 1)) {
       
       # ENTERED
       omega[2, 1, u, t] <- 0.0
@@ -322,11 +324,11 @@ model.code <- nimbleCode({
   # open likelihood - by individual [M]
   for (i in 1:M) {
     
-    # initial state (YR == 1)
-    z[i, 1] ~ dcat(omega1[1:3, site[i]])
+    # initial state (first.year by site)
+    z[i, first.year[site[i]]] ~ dcat(omega1[1:3, site[i]])
     
-    # subsequent states (YR > 1)
-    for (t in 1:(YR - 1)) {
+    # subsequent states (YR > first.year)
+    for (t in (first.year[site[i]]):(YR - 1)) {
       
       z[i, t + 1] ~ dcat(omega[z[i, t], 1:3, site[i], t])
       
