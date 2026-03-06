@@ -169,10 +169,6 @@ plot_grid(plotlist = all.S.rect.plots, nrow = 4)
 
 # ______________________________________________________________________________
 # 8. Center S and traps on (0, 0) ----
-
-# UNUSED
-# even if I don't end up using the mask, we can keep that transform of the coordinates
-
 # ______________________________________________________________________________
 
 all.S.center <- list()
@@ -308,7 +304,7 @@ for (i in 1:12) {
     unit = i,
     area.rect = area.rect,
     area.unit = area.unit,
-    aug.rect = round(area.rect / area.unit)
+    aug.rect = round(area.rect / 9)    # 9 ha grid
     
   )
   

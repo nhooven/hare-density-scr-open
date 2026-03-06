@@ -390,8 +390,6 @@ for (i in 1:41) {
 open.ch.1 <- open.ch %>% mutate(MRID.Site = paste0(MRID, ".", Site))
 open.ch.split <- split(open.ch.1, f = ~ MRID.Site)
 
-
-
 # ______________________________________________________________________________
 # 6a. Function to find closed CHs from MR data ----
 # ______________________________________________________________________________
@@ -636,23 +634,29 @@ cov.cluster <- case_when(site.to.int$siteID %in% c(1:3) ~ 1,
 # ______________________________________________________________________________
 # 8d. Treatment ----
 
-# varies by year
+# RET and PIL are constant
+# post1 and post2 vary by year
 
 # ______________________________________________________________________________
 
 cov.ret <- matrix(NA, nrow = nrow(open.ch.2), ncol = 4)
 cov.pil <- matrix(NA, nrow = nrow(open.ch.2), ncol = 4)
+cov.post1 <- matrix(NA, nrow = nrow(open.ch.2), ncol = 4)
+cov.post2 <- matrix(NA, nrow = nrow(open.ch.2), ncol = 4)
 
-# add zeroes for pre-treatment
-cov.ret[ , c(1:2)] <- 0
-cov.pil[ , c(1:2)] <- 0
+# treatment sites
+cov.ret[which(cov.site %in% c(1, 5, 8, 10)), ] <- 1
+cov.ret[which(cov.site %notin% c(1, 5, 8, 10)), ] <- 0
 
-# post
-cov.ret[which(cov.site %in% c(1, 5, 8, 10)), c(3:4)] <- 1
-cov.ret[which(cov.site %notin% c(1, 5, 8, 10)), c(3:4)] <- 0
+cov.pil[which(cov.site %in% c(2, 4, 7, 11)), ] <- 1
+cov.pil[which(cov.site %notin% c(2, 4, 7, 11)), ] <- 0
 
-cov.pil[which(cov.site %in% c(2, 4, 7, 11)), c(3:4)] <- 1
-cov.pil[which(cov.site %notin% c(2, 4, 7, 11)), c(3:4)] <- 0
+# post treatment indicators 
+cov.post1[ , 3] <- 1
+cov.post1[ , c(1:2, 4)] <- 0
+
+cov.post2[ , 4] <- 1
+cov.post2[ , c(1:3)] <- 0
 
 # ______________________________________________________________________________
 # 8e. Sex ----
@@ -678,7 +682,18 @@ cov.indivID <- 1:nrow(open.ch.2)
 # 8g. Bind into a list ----
 # ______________________________________________________________________________
 
-indiv.covs <- list(cov.site, cov.cluster, cov.ret, cov.pil, cov.sex, cov.indivID)
+indiv.covs <- list(
+  
+  cov.site, 
+  cov.cluster, 
+  cov.ret, 
+  cov.pil, 
+  cov.post1,
+  cov.post2,
+  cov.sex, 
+  cov.indivID
+  
+  )
 
 # ______________________________________________________________________________
 # 9. Trap operation matrices ----
@@ -786,7 +801,7 @@ occ.sess <- as.matrix(
 untagged.indices <- which(open.ch.2$MRID %in% untagged.MRIDs)
 
 # open ch
-open.ch.3 <- as.matrix(open.ch.2[-untagged.indices, c(4:7)])
+open.ch.3 <- as.matrix(open.ch.2[-untagged.indices, c(5:8)])
 
 # closed ch
 all.indiv.ch.arr.1 <- all.indiv.ch.arr[-untagged.indices, , ]
@@ -804,8 +819,10 @@ indiv.covs.1 <- list(
   indiv.covs[[2]][-untagged.indices],    # cluster
   indiv.covs[[3]][-untagged.indices, ],  # ret
   indiv.covs[[4]][-untagged.indices, ],  # pil
-  indiv.covs[[5]][-untagged.indices],    # sex
-  indiv.covs[[5]][-untagged.indices]     # indivID (probably don't need it)
+  indiv.covs[[5]][-untagged.indices, ],    # post1
+  indiv.covs[[6]][-untagged.indices, ],    # post2
+  indiv.covs[[7]][-untagged.indices],    # sex
+  indiv.covs[[8]][-untagged.indices]     # indivID (probably don't need it)
   
 )
 
