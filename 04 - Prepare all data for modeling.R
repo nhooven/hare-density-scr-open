@@ -4,7 +4,7 @@
 # EMAIL: nathan.d.hooven@gmail.com
 # BEGAN: 14 Jan 2026
 # COMPLETED: 20 Jan 2026
-# LAST MODIFIED: 06 Mar 2026
+# LAST MODIFIED: 09 Mar 2026
 # R VERSION: 4.4.3
 
 # ______________________________________________________________________________
@@ -125,18 +125,18 @@ S.areas <- S.area$area.rect
 n.aug.u <- n.u * 5
 
 # modify after initial modeling results
-n.aug.u[1] = n.aug.u[1] - 250
-n.aug.u[2] = n.aug.u[2] - 50
-n.aug.u[3] = n.aug.u[3]
-n.aug.u[4] = n.aug.u[4] - 250
-n.aug.u[5] = n.aug.u[5] - 200
-n.aug.u[6] = n.aug.u[6] - 75
-n.aug.u[7] = n.aug.u[7] - 75
-n.aug.u[8] = n.aug.u[8] - 125    
-n.aug.u[9] = n.aug.u[9] - 75
-n.aug.u[10] = n.aug.u[10] - 50
-n.aug.u[11] = n.aug.u[11] + 25
-n.aug.u[12] = n.aug.u[12]
+n.aug.u[1] = n.aug.u[1] - 275
+n.aug.u[2] = n.aug.u[2] - 75
+n.aug.u[3] = n.aug.u[3] - 200
+n.aug.u[4] = n.aug.u[4] - 275
+n.aug.u[5] = n.aug.u[5] - 225
+n.aug.u[6] = n.aug.u[6] - 100
+n.aug.u[7] = n.aug.u[7] - 100
+n.aug.u[8] = n.aug.u[8] - 150    
+n.aug.u[9] = n.aug.u[9] - 100
+n.aug.u[10] = n.aug.u[10] - 75
+n.aug.u[11] = n.aug.u[11]
+n.aug.u[12] = n.aug.u[12] - 25
 
 n.aug = sum(n.aug.u)
 
@@ -190,24 +190,26 @@ aug.clusterID <- case_when(aug.siteID %in% c(1:3) ~ 1,
 aug.sex <- rep(NA, times = n.aug)
 
 # treatment
-aug.ret <- matrix(NA, nrow = n.aug, ncol = 4)
-aug.pil <- matrix(NA, nrow = n.aug, ncol = 4)
-aug.post1 <- matrix(NA, nrow = n.aug, ncol = 4)
-aug.post2 <- matrix(NA, nrow = n.aug, ncol = 4)
+# detection
+aug.det.ret <- matrix(0, nrow = n.aug, ncol = 4)
+aug.det.pil <- matrix(0, nrow = n.aug, ncol = 4)
+
+aug.det.ret[which(aug.siteID %in% c(1, 5, 8, 10)), 3:4] <- 1
+aug.det.pil[which(aug.siteID %in% c(2, 4, 7, 11)), 3:4] <- 1
+
+# open
+aug.op.ret <- rep(0, length = n.aug)
+aug.op.pil <- rep(0, length = n.aug)
+aug.op.post1 <- matrix(0, nrow = n.aug, ncol = 4)
+aug.op.post2 <- matrix(0, nrow = n.aug, ncol = 4)
 
 # treatment sites
-aug.ret[which(aug.siteID %in% c(1, 5, 8, 10)), ] <- 1
-aug.ret[which(aug.siteID %notin% c(1, 5, 8, 10)), ] <- 0
-
-aug.pil[which(aug.siteID %in% c(2, 4, 7, 11)), ] <- 1
-aug.pil[which(aug.siteID %notin% c(2, 4, 7, 11)), ] <- 0
+aug.op.ret[which(aug.siteID %in% c(1, 5, 8, 10))] <- 1
+aug.op.pil[which(aug.siteID %in% c(2, 4, 7, 11))] <- 1
 
 # post treatment indicators 
-aug.post1[ , 3] <- 1
-aug.post1[ , c(1:2, 4)] <- 0
-
-aug.post2[ , 4] <- 1
-aug.post2[ , c(1:3)] <- 0
+aug.op.post1[ , 3] <- 1
+aug.op.post2[ , 4] <- 1
 
 # bind all indiv covs together
 indiv.covs.M <- list(
@@ -218,20 +220,26 @@ indiv.covs.M <- list(
   # cluster
   c(indiv.covs[[2]], aug.clusterID),
   
-  # ret
-  rbind(indiv.covs[[3]], aug.ret),
+  # det.ret
+  rbind(indiv.covs[[3]], aug.det.ret),
   
-  # pil
-  rbind(indiv.covs[[4]], aug.pil),
+  # det.pil
+  rbind(indiv.covs[[4]], aug.det.pil),
   
-  # post1
-  rbind(indiv.covs[[5]], aug.post1),
+  # op.ret
+  c(indiv.covs[[5]], aug.op.ret),
   
-  # post2
-  rbind(indiv.covs[[6]], aug.post2),
+  # op.pil
+  c(indiv.covs[[6]], aug.op.pil),
+  
+  # op.post1
+  rbind(indiv.covs[[7]], aug.op.post1),
+  
+  # op.post2
+  rbind(indiv.covs[[8]], aug.op.post2),
   
   # sex
-  c(indiv.covs[[7]], aug.sex)
+  c(indiv.covs[[9]], aug.sex)
   
   )
 
@@ -297,7 +305,15 @@ constant.list <- list(
   trap.coords = trap.coords,
   
   # site indicator
-  which.site = which.site
+  which.site = which.site,
+  
+  # individual covariates [M]
+  det.ret = indiv.covs.M[[3]],
+  det.pil = indiv.covs.M[[4]],
+  op.ret = indiv.covs.M[[5]],
+  op.pil = indiv.covs.M[[6]],
+  op.post1 = indiv.covs.M[[7]],
+  op.post2 = indiv.covs.M[[8]]
   
 )
 
@@ -313,15 +329,11 @@ data.list <- list(
   # closed capture histories [n, max(K), YR]
   ch = closed.ch,
   
-  # individual data [M]
-  ret = indiv.covs.M[[3]],
-  pil = indiv.covs.M[[4]],
-  post1 = indiv.covs.M[[5]],
-  post2 = indiv.covs.M[[6]],
-  sex = indiv.covs.M[[7]],
-  
   # data augmentation [M, YR]
-  zeroes = zeroes
+  zeroes = zeroes,
+  
+  # covariates
+  sex = indiv.covs.M[[9]]
   
 )
 
@@ -532,7 +544,7 @@ make_init_states <- function (x) {
   
 }
 
-# apply function thrice (one for each chain)
+# apply function once for each chain
 state.inits <- list()
 
 state.inits[[1]] <- t(apply(open.ch.all, 1, make_init_states))

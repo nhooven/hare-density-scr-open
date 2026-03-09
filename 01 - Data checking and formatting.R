@@ -4,7 +4,7 @@
 # EMAIL: nathan.d.hooven@gmail.com
 # BEGAN: 12 Jan 2026
 # COMPLETED: 29 Jan 2026
-# LAST MODIFIED: 03 Mar 2026
+# LAST MODIFIED: 09 Mar 2026
 # R VERSION: 4.4.3
 
 # ______________________________________________________________________________
@@ -634,29 +634,37 @@ cov.cluster <- case_when(site.to.int$siteID %in% c(1:3) ~ 1,
 # ______________________________________________________________________________
 # 8d. Treatment ----
 
-# RET and PIL are constant
-# post1 and post2 vary by year
+# we'll include two sets of individual treatment covariates here
+# det - just whether a site was treated with either treatment for detection
+  # det.ret
+  # det.pil
+
+# op - the same structure as the hazard model
+  # op.ret and op.pil are constant
+  # op.post1 and op.post2 vary by year
 
 # ______________________________________________________________________________
 
-cov.ret <- matrix(NA, nrow = nrow(open.ch.2), ncol = 4)
-cov.pil <- matrix(NA, nrow = nrow(open.ch.2), ncol = 4)
-cov.post1 <- matrix(NA, nrow = nrow(open.ch.2), ncol = 4)
-cov.post2 <- matrix(NA, nrow = nrow(open.ch.2), ncol = 4)
+# det - detection covariates (start at zero then add 1s)
+det.ret <- matrix(0, nrow = nrow(open.ch.2), ncol = 4)
+det.pil <- matrix(0, nrow = nrow(open.ch.2), ncol = 4)
+
+det.ret[which(cov.site %in% c(1, 5, 8, 10)), 3:4] <- 1
+det.pil[which(cov.site %in% c(2, 4, 7, 11)), 3:4] <- 1
+
+# op - open covariates
+op.ret <- rep(0, length = nrow(open.ch.2))                 # fixed with time
+op.pil <- rep(0, length = nrow(open.ch.2))                 # fixed with time
+op.post1 <- matrix(0, nrow = nrow(open.ch.2), ncol = 4)    # time-varying
+op.post2 <- matrix(0, nrow = nrow(open.ch.2), ncol = 4)    # time-varying
 
 # treatment sites
-cov.ret[which(cov.site %in% c(1, 5, 8, 10)), ] <- 1
-cov.ret[which(cov.site %notin% c(1, 5, 8, 10)), ] <- 0
-
-cov.pil[which(cov.site %in% c(2, 4, 7, 11)), ] <- 1
-cov.pil[which(cov.site %notin% c(2, 4, 7, 11)), ] <- 0
+op.ret[which(cov.site %in% c(1, 5, 8, 10))] <- 1
+op.pil[which(cov.site %in% c(2, 4, 7, 11))] <- 1
 
 # post treatment indicators 
-cov.post1[ , 3] <- 1
-cov.post1[ , c(1:2, 4)] <- 0
-
-cov.post2[ , 4] <- 1
-cov.post2[ , c(1:3)] <- 0
+op.post1[ , 3] <- 1
+op.post2[ , 4] <- 1
 
 # ______________________________________________________________________________
 # 8e. Sex ----
@@ -670,28 +678,20 @@ cov.sex <- case_when(open.ch.2$Sex == "F" ~ 0,
                      open.ch.2$Sex == "U" ~ NA)
 
 # ______________________________________________________________________________
-# 8f. indivID ----
-
-# this will be helpful to have as just an index
-
-# ______________________________________________________________________________
-
-cov.indivID <- 1:nrow(open.ch.2)
-
-# ______________________________________________________________________________
 # 8g. Bind into a list ----
 # ______________________________________________________________________________
 
 indiv.covs <- list(
   
-  cov.site, 
-  cov.cluster, 
-  cov.ret, 
-  cov.pil, 
-  cov.post1,
-  cov.post2,
-  cov.sex, 
-  cov.indivID
+  cov.site,              # 1
+  cov.cluster,           # 2
+  det.ret,               # 3
+  det.pil,               # 4
+  op.ret,                # 5
+  op.pil,                # 6
+  op.post1,              # 7
+  op.post2,              # 8
+  cov.sex                # 9
   
   )
 
@@ -817,12 +817,13 @@ indiv.covs.1 <- list(
   
   indiv.covs[[1]][-untagged.indices],    # site
   indiv.covs[[2]][-untagged.indices],    # cluster
-  indiv.covs[[3]][-untagged.indices, ],  # ret
-  indiv.covs[[4]][-untagged.indices, ],  # pil
-  indiv.covs[[5]][-untagged.indices, ],    # post1
-  indiv.covs[[6]][-untagged.indices, ],    # post2
-  indiv.covs[[7]][-untagged.indices],    # sex
-  indiv.covs[[8]][-untagged.indices]     # indivID (probably don't need it)
+  indiv.covs[[3]][-untagged.indices, ],  # det.ret
+  indiv.covs[[4]][-untagged.indices, ],  # det.pil
+  indiv.covs[[5]][-untagged.indices],    # op.ret
+  indiv.covs[[6]][-untagged.indices],    # op.pil
+  indiv.covs[[7]][-untagged.indices, ],  # op.post1
+  indiv.covs[[8]][-untagged.indices, ],  # op.post2
+  indiv.covs[[9]][-untagged.indices]     # sex
   
 )
 
@@ -850,3 +851,4 @@ saveRDS(trap.op.list, "for_model/trap_op.rds")
 
 # occasions by session
 saveRDS(occ.sess, "for_model/occ_sess.rds")
+
