@@ -4,7 +4,7 @@
 # EMAIL: nathan.d.hooven@gmail.com
 # BEGAN: 14 Jan 2026
 # COMPLETED: 20 Jan 2026
-# LAST MODIFIED: 09 Mar 2026
+# LAST MODIFIED: 10 Mar 2026
 # R VERSION: 4.4.3
 
 # ______________________________________________________________________________
@@ -126,14 +126,14 @@ n.aug.u <- n.u * 5
 
 # modify after initial modeling results
 n.aug.u[1] = n.aug.u[1] - 275
-n.aug.u[2] = n.aug.u[2] - 75
-n.aug.u[3] = n.aug.u[3] - 200
+n.aug.u[2] = n.aug.u[2] - 125
+n.aug.u[3] = n.aug.u[3] - 250
 n.aug.u[4] = n.aug.u[4] - 275
-n.aug.u[5] = n.aug.u[5] - 225
+n.aug.u[5] = n.aug.u[5] - 275
 n.aug.u[6] = n.aug.u[6] - 100
-n.aug.u[7] = n.aug.u[7] - 100
-n.aug.u[8] = n.aug.u[8] - 150    
-n.aug.u[9] = n.aug.u[9] - 100
+n.aug.u[7] = n.aug.u[7] - 150
+n.aug.u[8] = n.aug.u[8] - 200    
+n.aug.u[9] = n.aug.u[9] - 150
 n.aug.u[10] = n.aug.u[10] - 75
 n.aug.u[11] = n.aug.u[11]
 n.aug.u[12] = n.aug.u[12] - 25

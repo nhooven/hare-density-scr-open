@@ -4,7 +4,7 @@
 # EMAIL: nathan.d.hooven@gmail.com
 # BEGAN: 06 Feb 2026
 # COMPLETED: 
-# LAST MODIFIED: 09 Mar 2026
+# LAST MODIFIED: 10 Mar 2026
 # R VERSION: 4.4.3
 
 # ______________________________________________________________________________
@@ -43,25 +43,19 @@ cat_p <- nimbleFunction(
     lam0_b0 = double(0),
     lam0_sd = double(0),
     lam0_c = double(0),
-    lam0_b1 = double(0),
-    lam0_b2 = double(0),
-    lam0_b3 = double(0),
+    lam0_b = double(1),
     
     # previous capture
     alpha2_b0 = double(0),
     alpha2_sd = double(0),
     alpha2_c = double(0),
-    alpha2_b1 = double(0),
-    alpha2_b2 = double(0),
-    alpha2_b3 = double(0),
+    alpha2_b = double(1),
     
     # spatial scale of movement
     sigma_b0 = double(0),
     sigma_sd = double(0),
     sigma_c = double(0),
-    sigma_b1 = double(0),
-    sigma_b2 = double(0),
-    sigma_b3 = double(0),
+    sigma_b = double(1),
     
     # individual data
     # scalars
@@ -91,12 +85,38 @@ cat_p <- nimbleFunction(
     p.sum <- 0.0       # for subtracting, "trap 37"
     
     # detection
-    alpha2 <- (alpha2_b0 + alpha2_sd * alpha2_c) + alpha2_b1 * sex + alpha2_b2 * ret + alpha2_b3 * pil
-    sigma <- exp((sigma_b0 + sigma_sd * sigma_c) + sigma_b1 * sex + sigma_b2 * ret + sigma_b3 * pil)
+    # alpha2 - previous capture effect
+    alpha2 <- (alpha2_b0 + alpha2_sd * alpha2_c) + 
+      
+      alpha2_b[1] * sex + 
+      alpha2_b[2] * ret + 
+      alpha2_b[3] * pil
+    
+    # sigma and alpha1 - distance decay
+    sigma <- exp(
+      
+      (sigma_b0 + sigma_sd * sigma_c) + 
+                   
+        sigma_b[1] * sex + 
+        sigma_b[2] * ret + 
+        sigma_b[3] * pil
+      
+      )
+    
     alpha1 <- -1 / sigma
     
     # lam0 - baseline hazard of detection [i, k, t]
-    lam0 <- exp((lam0_b0 + lam0_sd * lam0_c) + lam0_b1 * sex + lam0_b2 * ret + lam0_b3 * pil + alpha2 * prev.cap)
+    lam0 <- exp(
+      
+      (lam0_b0 + lam0_sd * lam0_c) + 
+        
+        lam0_b[1] * sex + 
+        lam0_b[2] * ret + 
+        lam0_b[3] * pil + 
+        
+        alpha2 * prev.cap
+      
+      )
     
     # loop over traps [J]
     for (j in 1:J) {
@@ -153,30 +173,23 @@ bern_p <- nimbleFunction(
   run = function (
     
     # detection parameters
-    # stochastic from priors, all scalar
     # baseline hazard of detection
     lam0_b0 = double(0),
     lam0_sd = double(0),
     lam0_c = double(0),
-    lam0_b1 = double(0),
-    lam0_b2 = double(0),
-    lam0_b3 = double(0),
+    lam0_b = double(1),
     
     # previous capture
     alpha2_b0 = double(0),
     alpha2_sd = double(0),
     alpha2_c = double(0),
-    alpha2_b1 = double(0),
-    alpha2_b2 = double(0),
-    alpha2_b3 = double(0),
+    alpha2_b = double(1),
     
     # spatial scale of movement
     sigma_b0 = double(0),
     sigma_sd = double(0),
     sigma_c = double(0),
-    sigma_b1 = double(0),
-    sigma_b2 = double(0),
-    sigma_b3 = double(0),
+    sigma_b = double(1),
     
     # individual data
     # scalars
@@ -210,8 +223,24 @@ bern_p <- nimbleFunction(
     p.sum <- nimNumeric(K, 0.0)       # for subtracting, "trap 37"
     
     # detection
-    alpha2 <- (alpha2_b0 + alpha2_sd * alpha2_c) + alpha2_b1 * sex + alpha2_b2 * ret + alpha2_b3 * pil
-    sigma <- exp((sigma_b0 + sigma_sd * sigma_c) + sigma_b1 * sex + sigma_b2 * ret + sigma_b3 * pil)
+    # alpha2 - previous capture effect
+    alpha2 <- (alpha2_b0 + alpha2_sd * alpha2_c) + 
+      
+      alpha2_b[1] * sex + 
+      alpha2_b[2] * ret + 
+      alpha2_b[3] * pil
+    
+    # sigma and alpha1 - distance decay
+    sigma <- exp(
+      
+      (sigma_b0 + sigma_sd * sigma_c) + 
+        
+        sigma_b[1] * sex + 
+        sigma_b[2] * ret + 
+        sigma_b[3] * pil
+      
+      )
+    
     alpha1 <- -1 / sigma
     
     # loop over secondary occasions K
@@ -220,7 +249,17 @@ bern_p <- nimbleFunction(
       eta.denom[k] <- 1.0
       
       # lam0 - baseline hazard of detection [i, k, t]
-      lam0[k] <- exp((lam0_b0 + lam0_sd * lam0_c) + lam0_b1 * sex + lam0_b2 * ret + lam0_b3 * pil + alpha2 * prev.cap[k])
+      lam0[k] <- exp(
+        
+        (lam0_b0 + lam0_sd * lam0_c) + 
+          
+          lam0_b[1] * sex + 
+          lam0_b[2] * ret + 
+          lam0_b[3] * pil + 
+          
+          alpha2 * prev.cap[k]
+        
+        )
       
       # and loop over traps [J]
       for (j in 1:J) {
@@ -381,24 +420,27 @@ model.code <- nimbleCode({
   # detection parameter priors
   # lam0 - baseline hazard detection (log scale)
   lam0_b0 ~ dnorm(0, sd = 1)  # mean 
-  lam0_sd ~ dexp(rate = 1)    # SD
-  lam0_b1 ~ dnorm(0, sd = 1)  # male effect
-  lam0_b2 ~ dnorm(0, sd = 1)  # ret effect
-  lam0_b3 ~ dnorm(0, sd = 1)  # pil effect
+  lam0_sd ~ T(dt(0, sigma = 1, df = 1), 0, )    # SD - half-Cauchy
   
   # alpha2 - trap response
   alpha2_b0 ~ dnorm(0, sd = 1)  # mean 
-  alpha2_sd ~ dexp(rate = 1)    # SD
-  alpha2_b1 ~ dnorm(0, sd = 1)  # male effect
-  alpha2_b2 ~ dnorm(0, sd = 1)  # ret effect
-  alpha2_b3 ~ dnorm(0, sd = 1)  # pil effect
+  alpha2_sd ~ T(dt(0, sigma = 1, df = 1), 0, )    # SD - half-Cauchy
   
   # sigma - spatial scale of movement
   sigma_b0 ~ dnorm(log(45), sd = 0.5)     # mean
-  sigma_sd ~ dexp(rate = 1)               # SD
-  sigma_b1 ~ dnorm(0, sd = 1)             # male effect
-  sigma_b2 ~ dnorm(0, sd = 1)             # ret effect
-  sigma_b3 ~ dnorm(0, sd = 1)             # pil effect
+  sigma_sd ~ T(dt(0, sigma = 1, df = 1), 0, )   # SD - half-Cauchy
+  
+  # detection linear coefficients (n = 3)
+    # b1 - male effect
+    # b2 - ret effect
+    # b3 - pil effect
+  for (x in 1:3) {
+    
+    lam0_b[x] ~ dnorm(0, sd = 1)  
+    alpha2_b[x] ~ dnorm(0, sd = 1)  
+    sigma_b[x] ~ dnorm(0, sd = 1)  
+    
+  }
   
   # c - cluster-specific random scaling factors
   for (c in 1:4) {
@@ -436,25 +478,19 @@ model.code <- nimbleCode({
           lam0_b0 = lam0_b0,
           lam0_sd = lam0_sd,
           lam0_c = lam0_c[cluster[i]],
-          lam0_b1 = lam0_b1,
-          lam0_b2 = lam0_b2,
-          lam0_b3 = lam0_b3,
+          lam0_b = lam0_b[1:3],
           
           # previous capture effect
           alpha2_b0 = alpha2_b0,
           alpha2_sd = alpha2_sd,
           alpha2_c = alpha2_c[cluster[i]],
-          alpha2_b1 = alpha2_b1,
-          alpha2_b2 = alpha2_b2,
-          alpha2_b3 = alpha2_b3,
+          alpha2_b = alpha2_b[1:3],
           
           # spatial scale of movement
           sigma_b0 = sigma_b0,
           sigma_sd = sigma_sd,
           sigma_c = sigma_c[cluster[i]],
-          sigma_b1 = sigma_b1,
-          sigma_b2 = sigma_b2,
-          sigma_b3 = sigma_b3,
+          sigma_b = sigma_b[1:3],
           
           # constants
           sex = sex[i],
@@ -501,25 +537,19 @@ model.code <- nimbleCode({
         lam0_b0 = lam0_b0,
         lam0_sd = lam0_sd,
         lam0_c = lam0_c[cluster[i]],
-        lam0_b1 = lam0_b1,
-        lam0_b2 = lam0_b2,
-        lam0_b3 = lam0_b3,
+        lam0_b = lam0_b[1:3],
         
         # previous capture effect
         alpha2_b0 = alpha2_b0,
         alpha2_sd = alpha2_sd,
         alpha2_c = alpha2_c[cluster[i]],
-        alpha2_b1 = alpha2_b1,
-        alpha2_b2 = alpha2_b2,
-        alpha2_b3 = alpha2_b3,
+        alpha2_b = alpha2_b[1:3],
         
         # spatial scale of movement
         sigma_b0 = sigma_b0,
         sigma_sd = sigma_sd,
         sigma_c = sigma_c[cluster[i]],
-        sigma_b1 = sigma_b1,
-        sigma_b2 = sigma_b2,
-        sigma_b3 = sigma_b3,
+        sigma_b = sigma_b[1:3],
         
         # constants
         sex = sex[i],
@@ -577,36 +607,30 @@ inits <- list(
   z = state.inits,       
   
   # CLOSED
-  # ACs
-  s = array(runif(constant.list$M * constant.list$YR, -200, 200),   
+  # ACs - we'll keep these pretty close to the trap array to start
+  s = array(runif(constant.list$M * constant.list$YR, -50, 50),   
             dim = c(constant.list$M, 2, constant.list$YR)),
   
   # detection
   # baseline hazard
   lam0_b0 = rnorm(1, 0, 1),
   lam0_sd = rexp(1, 1),
-  lam0_b1 = rnorm(1, 0, 1),
-  lam0_b2 = rnorm(1, 0, 1),
-  lam0_b3 = rnorm(1, 0, 1),
+  lam0_b = rnorm(3, 0, 1),
   
   # previous capture
   alpha2_b0 = rnorm(1, 0, 1),
   alpha2_sd = rexp(1, 1),
-  alpha2_b1 = rnorm(1, 0, 1),
-  alpha2_b2 = rnorm(1, 0, 1),
-  alpha2_b3 = rnorm(1, 0, 1),
+  alpha2_b = rnorm(3, 0, 1),
   
   # spatial scale
   sigma_b0 = rnorm(1, log(45), 0.5),
   sigma_sd = rexp(1, 1),
-  sigma_b1 = rnorm(1, 0, 1),
-  sigma_b2 = rnorm(1, 0, 1),
-  sigma_b3 = rnorm(1, 0, 1),
+  sigma_b = rnorm(3, 0, 1),
   
-  # c - random effect scaling parameters 
-  lam0_c = rnorm(4, 0, 1),
-  alpha2_c = rnorm(4, 0, 1),
-  sigma_c = rnorm(4, 0, 1),
+  # c - random effect scaling parameters (keep close to zero to start)
+  lam0_c = rnorm(4, 0, 0.25),
+  alpha2_c = rnorm(4, 0, 0.25),
+  sigma_c = rnorm(4, 0, 0.25),
   
   # latent covariates
   sex = ifelse(is.na(data.list$sex) == F, NA, 0)
@@ -627,9 +651,9 @@ monitor <- c(
   "psi", "phi", "rho",
   
   # detection
-  "lam0_b0", "lam0_sd", "lam0_c", "lam0_b1", "lam0_b2", "lam0_b3",
-  "alpha2_b0", "alpha2_sd", "alpha2_c", "alpha2_b1", "alpha2_b2", "alpha2_b3",
-  "sigma_b0", "sigma_sd", "sigma_c", "sigma_b1", "sigma_b2", "sigma_b3",
+  "lam0_b0", "lam0_sd", "lam0_c", "lam0_b", 
+  "alpha2_b0", "alpha2_sd", "alpha2_c", "alpha2_b", 
+  "sigma_b0", "sigma_sd", "sigma_c", "sigma_b", 
   
   # states and counts
   "N", "N.avail", "z"
@@ -672,75 +696,127 @@ model.1.conf <- configureMCMC(model.1, monitors = monitor)
 # 9. Add block samplers ----
 # ______________________________________________________________________________
 # 9a. Detection parameters ----
-
-# fix after initial run!
-
 # ______________________________________________________________________________
 
-# proposed covariance matrices
-# alpha0 and alpha2
-propCov.alpha <- matrix(
+# matrices
+# lam0 (lam0_b0, lam0_c, lam0_b1)
+propCov.lam0 <- matrix(
   
-  c(0.013, -0.013, -0.008, 0.007,
-    -0.013, 0.025, 0.008, -0.017,
-    -0.008, 0.008, 0.009, -0.008,
-    0.007, -0.017, -0.008, 0.022),
+  data = c(0.033,	-0.055,	-0.063,	-0.062,	-0.053,	-0.016,
+           -0.055,	0.401,	0.111,	0.178,	0.111,	0.007,
+           -0.063,	0.111,	0.482,	0.109,	0.162,	-0.003,
+           -0.062,	0.178,	0.109,	0.601,	0.149,	-0.001,
+           -0.053,	0.111,	0.162,	0.149,	0.522,	0.011,
+           -0.016,	0.007,	-0.003,	-0.001,	0.011,	0.038),
   
-  nrow = 4,
-  ncol = 4,
+  nrow = 6,
+  ncol = 6,
+  byrow = T
+           
+  )
+
+# alpha2 (alpha2_b0, alpha2_c, alpha2_b1)
+propCov.alpha2 <- matrix(
+  
+  data = c(0.025,	-0.046,	-0.037,	-0.032,	-0.029,	-0.011,
+           -0.046,	0.627,	0.092,	0.105,	0.043,	0.004,
+           -0.037,	0.092,	0.632,	0.113,	0.053,	-0.003,
+           -0.032,	0.105,	0.113,	0.545,	0.080,	-0.005,
+           -0.029,	0.043,	0.053,	0.080,	0.648,	-0.004,
+           -0.011,	0.004,	-0.003,	-0.005,	-0.004,	0.027),
+  
+  nrow = 6,
+  ncol = 6,
   byrow = T
   
 )
 
-# sigma
+# sigma (sigma_b0, sigma_c, sigma_b1)
 propCov.sigma <- matrix(
   
-  c(0.002, -0.002,
-    -0.002, 0.004),
+  data = c(0.075,	-0.109,	-0.142,	-0.101,	-0.166,	-0.010,
+           -0.109,	0.251,	0.232,	0.232,	0.247,	0.014,
+           -0.142,	0.232,	0.333,	0.222,	0.364,	0.012,
+           -0.101,	0.232,	0.222,	0.302,	0.211,	0.018,
+           -0.166,	0.247,	0.364,	0.211,	0.492,	0.009,
+           -0.010,	0.014,	0.012,	0.018,	0.009,	0.006),
   
-  nrow = 2,
-  ncol = 2,
+  nrow = 6,
+  ncol = 6,
   byrow = T
   
 )
 
 # check positive-definiteness
-eigen(propCov.alpha)$values
+eigen(propCov.lam0)$values
+eigen(propCov.alpha2)$values
 eigen(propCov.sigma)$values
 
 # check condition
-kappa(propCov.alpha)
+kappa(propCov.lam0)
+kappa(propCov.alpha2)
 kappa(propCov.sigma)
 
-model.1.conf$removeSamplers(c("alpha0_b0", "alpha0_b1",
-                              "alpha2_b0", "alpha2_b1",
-                              "sigma_b0", "sigma_b1"))
+# remove samplers
+model.1.conf$removeSamplers(
+  
+  c("lam0_b0", "lam0_c[1]", "lam0_c[2]", "lam0_c[3]", "lam0_c[4]", "lam0_b[1]",
+    "alpha2_b0", "alpha2_c[1]", "alpha2_c[2]", "alpha2_c[3]", "alpha2_c[4]", "alpha2_b[1]",
+    "sigma_b0", "sigma_c[1]", "sigma_c[2]", "sigma_c[3]", "sigma_c[4]", "sigma_b[1]")
+  
+  )
 
+# add samplers
+# lam0
 model.1.conf$addSampler(
   
-  c("alpha0_b0", "alpha0_b1", "alpha2_b0", "alpha2_b1"), 
+  c("lam0_b0", "lam0_c[1]", "lam0_c[2]", "lam0_c[3]", "lam0_c[4]", "lam0_b[1]"), 
   
   type = "RW_block",
   control = list(
     
-    "propCov" = propCov.alpha,
-    
+    "propCov" = propCov.lam0,
+    scale = 0.1,
+    adaptInterval = 50,
     adaptScaleOnly = F
     
-  ))
+  )
+  
+  )
 
+# alpha2
 model.1.conf$addSampler(
   
-  c("sigma_b0", "sigma_b1"), 
+  c("alpha2_b0", "alpha2_c[1]", "alpha2_c[2]", "alpha2_c[3]", "alpha2_c[4]", "alpha2_b[1]"), 
+  
+  type = "RW_block",
+  control = list(
+    
+    "propCov" = propCov.alpha2,
+    scale = 0.1,
+    adaptInterval = 50,
+    adaptScaleOnly = F
+    
+  )
+  
+)
+
+# sigma
+model.1.conf$addSampler(
+  
+  c("sigma_b0", "sigma_c[1]", "sigma_c[2]", "sigma_c[3]", "sigma_c[4]", "sigma_b[1]"), 
   
   type = "RW_block",
   control = list(
     
     "propCov" = propCov.sigma,
-    
+    scale = 0.1,
+    adaptInterval = 50,
     adaptScaleOnly = F
     
-  ))
+  )
+  
+)
 
 # ______________________________________________________________________________
 # 10. Build MCMC from configuration ----
