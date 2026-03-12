@@ -759,22 +759,6 @@ model.1.conf$addSampler(
   
   )
 
-# alpha2
-model.1.conf$addSampler(
-  
-  c("alpha2_b0", "alpha2_c[1]", "alpha2_c[2]", "alpha2_c[3]", "alpha2_c[4]", "alpha2_b[1]", "alpha2_b[2]"), 
-  
-  type = "RW_block",
-  control = list(
-    
-    "propCov" = propCov.alpha2,
-    adaptInterval = 50,
-    adaptScaleOnly = F
-    
-  )
-  
-)
-
 # sigma
 model.1.conf$addSampler(
   
