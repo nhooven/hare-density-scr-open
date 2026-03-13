@@ -4,7 +4,7 @@
 # EMAIL: nathan.d.hooven@gmail.com
 # BEGAN: 06 Feb 2026
 # COMPLETED: 
-# LAST MODIFIED: 12 Mar 2026
+# LAST MODIFIED: 13 Mar 2026
 # R VERSION: 4.4.3
 
 # ______________________________________________________________________________
@@ -420,7 +420,7 @@ model.code <- nimbleCode({
   # detection parameter priors
   # lam0 - baseline hazard detection (log scale)
   lam0_b0 ~ dnorm(0, sd = 1)  # mean 
-  lam0_sd ~ T(dt(0, sigma = 0.5, df = 1), 0, )    # SD - half-Cauchy
+  lam0_sd ~ T(dt(0, sigma = 1, df = 1), 0, )    # SD - half-Cauchy
   
   # alpha2 - trap response
   alpha2_b0 ~ dnorm(0, sd = 1)  # mean 
@@ -428,7 +428,7 @@ model.code <- nimbleCode({
   
   # sigma - spatial scale of movement
   sigma_b0 ~ dnorm(log(45), sd = 0.5)     # mean
-  sigma_sd ~ T(dt(0, sigma = 0.5, df = 1), 0, )   # SD - half-Cauchy
+  sigma_sd ~ T(dt(0, sigma = 1, df = 1), 0, )   # SD - half-Cauchy
   
   # detection linear coefficients (n = 3)
     # b1 - male effect
@@ -699,25 +699,55 @@ model.1.conf <- configureMCMC(model.1, monitors = monitor)
 # ______________________________________________________________________________
 
 # matrices
-# lam0 (c) &
-# alpha2 (b0, sd, c)
-propCov.1.csv <- read.csv("model_tests/propCov1.csv", header = F)
-
-propCov.1 <- matrix(
+# lam0 (lam0_b0, lam0_sd, lam0_c, lam0_b)
+propCov.lam0 <- matrix(
   
-  data = as.matrix(propCov.1.csv),
-  nrow = 10,
-  ncol = 10,
+  data = c(0.022,	-0.004,	-0.010,	-0.007,	-0.007,	-0.007,	-0.018,	-0.003,	-0.005,
+           -0.004,	0.125,	0.040,	0.023,	0.035,	0.035,	0.011,	0.015,	0.006,
+           -0.010,	0.040,	0.021,	0.012,	0.017,	0.015,	0.007,	0.004,	-0.001,
+           -0.007,	0.023,	0.012,	0.012,	0.011,	0.011,	0.000,	-0.004,	-0.003,
+           -0.007,	0.035,	0.017,	0.011,	0.018,	0.013,	0.002,	0.000,	-0.001,
+           -0.007,	0.035,	0.015,	0.011,	0.013,	0.019,	0.004,	-0.001,	-0.002,
+           -0.018,	0.011,	0.007,	0.000,	0.002,	0.004,	0.046,	0.008,	0.007,
+           -0.003,	0.015,	0.004,	-0.004,	0.000,	-0.001,	0.008,	0.045,	0.009,
+           -0.005,	0.006,	-0.001,	-0.003,	-0.001,	-0.002,	0.007,	0.009,	0.060
+  ),
+  
+  nrow = 9,
+  ncol = 9,
   byrow = T
-           
-  )
-
-# sigma (b0, sd, c)
-propCov.2.csv <- read.csv("model_tests/propCov2.csv", header = F)
-
-propCov.2 <- matrix(
   
-  data = as.matrix(propCov.2.csv),
+)
+
+# alpha2 (alpha2_b0, alpha2_c, alpha2_b[1-2])
+propCov.alpha2 <- matrix(
+  
+  data = c(0.023,		-0.055,	-0.022,	-0.027,	-0.024,	-0.016,	-0.010,	
+           -0.055,		0.638,	0.175,	0.125,	0.033,	0.024,	0.017,	
+           -0.022,		0.175,	0.581,	0.048,	0.030,	-0.010,	0.001,	
+           -0.027,		0.125,	0.048,	0.637,	0.070,	0.009,	-0.011,	
+           -0.024,		0.033,	0.030,	0.070,	0.746,	-0.017,	-0.010,	
+           -0.016,		0.024,	-0.010,	0.009,	-0.017,	0.035,	-0.001,	
+           -0.010,		0.017,	0.001,	-0.011,	-0.010,	-0.001,	0.042
+  ),
+  
+  nrow = 7,
+  ncol = 7,
+  byrow = T
+  
+)
+
+# sigma (sigma_b0, sigma_sd, sigma_c)
+propCov.sigma <- matrix(
+  
+  data = c(0.018,	0.006,	-0.052,	-0.032,	-0.049,	-0.032,
+           0.006,	0.017,	-0.020,	0.019,	-0.030,	0.030,
+           -0.052,	-0.020,	0.210,	0.097,	0.166,	0.100,
+           -0.032,	0.019,	0.097,	0.158,	0.065,	0.146,
+           -0.049,	-0.030,	0.166,	0.065,	0.269,	0.057,
+           -0.032,	0.030,	0.100,	0.146,	0.057,	0.235
+  ),
+  
   nrow = 6,
   ncol = 6,
   byrow = T
@@ -725,39 +755,56 @@ propCov.2 <- matrix(
 )
 
 # check positive-definiteness
-eigen(propCov.1)$values
-eigen(propCov.2)$values
+eigen(propCov.lam0)$values
+eigen(propCov.alpha2)$values
+eigen(propCov.sigma)$values
 
 # check condition
-kappa(propCov.1)
-kappa(propCov.2)
+kappa(propCov.lam0)
+kappa(propCov.alpha2)
+kappa(propCov.sigma)
 
 # remove samplers
 model.1.conf$removeSamplers(
   
-  c("lam0_c[1]", "lam0_c[2]", "lam0_c[3]", "lam0_c[4]", 
-    "alpha2_b0", "alpha2_sd", "alpha2_c[1]", "alpha2_c[2]", "alpha2_c[3]", "alpha2_c[4]",
+  c("lam0_b0", "lam0_sd", "lam0_c[1]", "lam0_c[2]", "lam0_c[3]", "lam0_c[4]", "lam0_b[1]", "lam0_b[2]", "lam0_b[3]",
+    "alpha2_b0", "alpha2_c[1]", "alpha2_c[2]", "alpha2_c[3]", "alpha2_c[4]", "alpha2_b[1]", "alpha2_b[2]",
     "sigma_b0", "sigma_sd", "sigma_c[1]", "sigma_c[2]", "sigma_c[3]", "sigma_c[4]")
   
-  )
+)
 
 # add samplers
-# lam0 and alpha2
+# lam0
 model.1.conf$addSampler(
   
-  c("lam0_c[1]", "lam0_c[2]", "lam0_c[3]", "lam0_c[4]", 
-    "alpha2_b0", "alpha2_sd", "alpha2_c[1]", "alpha2_c[2]", "alpha2_c[3]", "alpha2_c[4]"), 
+  c("lam0_b0", "lam0_sd", "lam0_c[1]", "lam0_c[2]", "lam0_c[3]", "lam0_c[4]", "lam0_b[1]", "lam0_b[2]", "lam0_b[3]"), 
   
   type = "RW_block",
   control = list(
     
-    "propCov" = propCov.1,
+    "propCov" = propCov.lam0,
     adaptInterval = 50,
     adaptScaleOnly = F
     
   )
   
+)
+
+# alpha2
+model.1.conf$addSampler(
+  
+  c("alpha2_b0", "alpha2_c[1]", "alpha2_c[2]", "alpha2_c[3]", "alpha2_c[4]", "alpha2_b[1]", "alpha2_b[2]"), 
+  
+  type = "RW_block",
+  control = list(
+    
+    "propCov" = propCov.alpha2,
+    adaptInterval = 50,
+    adaptScaleOnly = F
+    
   )
+  
+)
 
 # sigma
 model.1.conf$addSampler(
@@ -767,7 +814,7 @@ model.1.conf$addSampler(
   type = "RW_block",
   control = list(
     
-    "propCov" = propCov.2,
+    "propCov" = propCov.sigma,
     adaptInterval = 50,
     adaptScaleOnly = F
     

@@ -125,9 +125,9 @@ S.areas <- S.area$area.rect
 n.aug.u <- n.u * 5
 
 # modify after initial modeling results
-n.aug.u[1] = n.aug.u[1] - 275
-n.aug.u[2] = n.aug.u[2] - 125
-n.aug.u[3] = n.aug.u[3] - 250
+n.aug.u[1] = n.aug.u[1] - 300
+n.aug.u[2] = n.aug.u[2] - 150
+n.aug.u[3] = n.aug.u[3] - 275
 n.aug.u[4] = n.aug.u[4] - 275
 n.aug.u[5] = n.aug.u[5] - 275
 n.aug.u[6] = n.aug.u[6] - 100
@@ -136,7 +136,7 @@ n.aug.u[8] = n.aug.u[8] - 200
 n.aug.u[9] = n.aug.u[9] - 150
 n.aug.u[10] = n.aug.u[10] - 75
 n.aug.u[11] = n.aug.u[11]
-n.aug.u[12] = n.aug.u[12] - 25
+n.aug.u[12] = n.aug.u[12]
 
 n.aug = sum(n.aug.u)
 
