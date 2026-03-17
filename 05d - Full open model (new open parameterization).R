@@ -4,7 +4,7 @@
 # EMAIL: nathan.d.hooven@gmail.com
 # BEGAN: 06 Feb 2026
 # COMPLETED: 
-# LAST MODIFIED: 09 Mar 2026
+# LAST MODIFIED: 17 Mar 2026
 # R VERSION: 4.4.3
 
 # ______________________________________________________________________________
@@ -46,8 +46,6 @@ cat_p <- nimbleFunction(
     
     # previous capture
     alpha2_b0 = double(0),
-    alpha2_sd = double(0),
-    alpha2_c = double(0),
     alpha2_b = double(1),
     
     # spatial scale of movement
@@ -85,7 +83,7 @@ cat_p <- nimbleFunction(
     
     # detection
     # alpha2 - previous capture effect
-    alpha2 <- (alpha2_b0 + alpha2_sd * alpha2_c) + 
+    alpha2 <- alpha2_b0 + 
       
       alpha2_b[1] * sex + 
       alpha2_b[2] * ret + 
@@ -180,8 +178,6 @@ bern_p <- nimbleFunction(
     
     # previous capture
     alpha2_b0 = double(0),
-    alpha2_sd = double(0),
-    alpha2_c = double(0),
     alpha2_b = double(1),
     
     # spatial scale of movement
@@ -223,7 +219,7 @@ bern_p <- nimbleFunction(
     
     # detection
     # alpha 2 - previous capture
-    alpha2 <- (alpha2_b0 + alpha2_sd * alpha2_c) + 
+    alpha2 <- alpha2_b0 + 
       
       alpha2_b[1] * sex + 
       alpha2_b[2] * ret + 
@@ -342,11 +338,11 @@ model.code <- nimbleCode({
   # demographic parameter priors
   # phi - persistence (logit scale)
   phi_b0 ~ dunif(0, 1)
-  phi_sd ~ dexp(rate = 1)
+  phi_sd ~ T(dt(0, sigma = 1, df = 1), 0, )    # SD - half-Cauchy
   
   # rho - per capita recruitment (log scale)
   rho_b0 ~ dunif(log(0.001), log(7))
-  rho_sd ~ dexp(rate = 1)
+  rho_sd ~ T(dt(0, sigma = 1, df = 1), 0, )    # SD - half-Cauchy
   
   # linear coefficients on open parameters (n = 7)
     # b1 - male effect
@@ -358,7 +354,7 @@ model.code <- nimbleCode({
     # b7 - pil x post2 effect
   for (x in 1:7) {
     
-    phi_b[x] ~ dlogis(0, 1)
+    phi_b[x] ~ dlogis(0, 1)        # logistic prior to avoid logit woes
     rho_b[x] ~ dnorm(0, sd = 1)
     
   }
@@ -479,15 +475,14 @@ model.code <- nimbleCode({
   # detection parameter priors
   # lam0 - baseline hazard detection (log scale)
   lam0_b0 ~ dnorm(0, sd = 1)  # mean 
-  lam0_sd ~ dexp(rate = 1)    # SD
+  lam0_sd ~ T(dt(0, sigma = 1, df = 1), 0, )    # SD - half-Cauchy
   
   # alpha2 - trap response
   alpha2_b0 ~ dnorm(0, sd = 1)  # mean 
-  alpha2_sd ~ dexp(rate = 1)    # SD
   
   # sigma - spatial scale of movement
   sigma_b0 ~ dnorm(log(45), sd = 0.5)     # mean
-  sigma_sd ~ dexp(rate = 1)               # SD
+  sigma_sd ~ T(dt(0, sigma = 1, df = 1), 0, )    # SD - half-Cauchy
   
   # linear coefficients on detection parameters (n = 3)
     # b1 - male
@@ -505,7 +500,6 @@ model.code <- nimbleCode({
   for (c in 1:4) {
     
     lam0_c[c] ~ dnorm(0, sd = 1)
-    alpha2_c[c] ~ dnorm(0, sd = 1)
     sigma_c[c] ~ dnorm(0, sd = 1)
     
   }
@@ -541,8 +535,6 @@ model.code <- nimbleCode({
           
           # previous capture effect
           alpha2_b0 = alpha2_b0,
-          alpha2_sd = alpha2_sd,
-          alpha2_c = alpha2_c[cluster[i]],
           alpha2_b = alpha2_b[1:3],
           
           # spatial scale of movement
@@ -600,8 +592,6 @@ model.code <- nimbleCode({
         
         # previous capture effect
         alpha2_b0 = alpha2_b0,
-        alpha2_sd = alpha2_sd,
-        alpha2_c = alpha2_c[cluster[i]],
         alpha2_b = alpha2_b[1:3],
         
         # spatial scale of movement
@@ -692,7 +682,6 @@ inits <- list(
   
   # previous capture
   alpha2_b0 = rnorm(1, 0, 1),
-  alpha2_sd = rexp(1, 1),
   alpha2_b = rnorm(3, 0, 1),
   
   # spatial scale
@@ -702,7 +691,6 @@ inits <- list(
   
   # c - random effect scaling parameters 
   lam0_c = rnorm(4, 0, 1),
-  alpha2_c = rnorm(4, 0, 1),
   sigma_c = rnorm(4, 0, 1),
   
   # latent covariates
@@ -727,7 +715,7 @@ monitor <- c(
   
   # detection
   "lam0_b0", "lam0_sd", "lam0_c", "lam0_b", 
-  "alpha2_b0", "alpha2_sd", "alpha2_c", "alpha2_b", 
+  "alpha2_b0", "alpha2_b", 
   "sigma_b0", "sigma_sd", "sigma_c", "sigma_b", 
   
   # states and counts
@@ -771,75 +759,9 @@ model.1.conf <- configureMCMC(model.1, monitors = monitor)
 # 9. Add block samplers ----
 # ______________________________________________________________________________
 # 9a. Detection parameters ----
-
-# fix after initial run!
-
 # ______________________________________________________________________________
 
-# proposed covariance matrices
-# alpha0 and alpha2
-propCov.alpha <- matrix(
-  
-  c(0.013, -0.013, -0.008, 0.007,
-    -0.013, 0.025, 0.008, -0.017,
-    -0.008, 0.008, 0.009, -0.008,
-    0.007, -0.017, -0.008, 0.022),
-  
-  nrow = 4,
-  ncol = 4,
-  byrow = T
-  
-)
-
-# sigma
-propCov.sigma <- matrix(
-  
-  c(0.002, -0.002,
-    -0.002, 0.004),
-  
-  nrow = 2,
-  ncol = 2,
-  byrow = T
-  
-)
-
-# check positive-definiteness
-eigen(propCov.alpha)$values
-eigen(propCov.sigma)$values
-
-# check condition
-kappa(propCov.alpha)
-kappa(propCov.sigma)
-
-model.1.conf$removeSamplers(c("alpha0_b0", "alpha0_b1",
-                              "alpha2_b0", "alpha2_b1",
-                              "sigma_b0", "sigma_b1"))
-
-model.1.conf$addSampler(
-  
-  c("alpha0_b0", "alpha0_b1", "alpha2_b0", "alpha2_b1"), 
-  
-  type = "RW_block",
-  control = list(
-    
-    "propCov" = propCov.alpha,
-    
-    adaptScaleOnly = F
-    
-  ))
-
-model.1.conf$addSampler(
-  
-  c("sigma_b0", "sigma_b1"), 
-  
-  type = "RW_block",
-  control = list(
-    
-    "propCov" = propCov.sigma,
-    
-    adaptScaleOnly = F
-    
-  ))
+# start without it
 
 # ______________________________________________________________________________
 # 10. Build MCMC from configuration ----
@@ -858,8 +780,8 @@ mcmc.1.comp <- compileNimble(mcmc.1, project = model.1)
 model.1.run <- runMCMC(
   
   mcmc = mcmc.1.comp,
-  niter = 10000,
-  nburnin = 5000,
+  niter = 100,
+  nburnin = 50,
   nchains = 1,
   samplesAsCodaMCMC = TRUE
   

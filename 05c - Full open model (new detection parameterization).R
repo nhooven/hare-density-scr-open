@@ -7,6 +7,10 @@
 # LAST MODIFIED: 13 Mar 2026
 # R VERSION: 4.4.3
 
+# 03-15-2026
+# removing REs for alpha2, trying a no blocking and then identity blocking for
+# other detection REs
+
 # ______________________________________________________________________________
 # 1. Load packages ----
 # ______________________________________________________________________________
@@ -86,7 +90,7 @@ cat_p <- nimbleFunction(
     
     # detection
     # alpha2 - previous capture effect
-    alpha2 <- (alpha2_b0 + alpha2_sd * alpha2_c) + 
+    alpha2 <- alpha2_b0 + 
       
       alpha2_b[1] * sex + 
       alpha2_b[2] * ret + 
@@ -224,7 +228,7 @@ bern_p <- nimbleFunction(
     
     # detection
     # alpha2 - previous capture effect
-    alpha2 <- (alpha2_b0 + alpha2_sd * alpha2_c) + 
+    alpha2 <- alpha2_b0 +
       
       alpha2_b[1] * sex + 
       alpha2_b[2] * ret + 
@@ -424,7 +428,6 @@ model.code <- nimbleCode({
   
   # alpha2 - trap response
   alpha2_b0 ~ dnorm(0, sd = 1)  # mean 
-  alpha2_sd ~ T(dt(0, sigma = 0.5, df = 1), 0, )    # SD - half-Cauchy
   
   # sigma - spatial scale of movement
   sigma_b0 ~ dnorm(log(45), sd = 0.5)     # mean
@@ -446,7 +449,6 @@ model.code <- nimbleCode({
   for (c in 1:4) {
     
     lam0_c[c] ~ dnorm(0, sd = 1)
-    alpha2_c[c] ~ dnorm(0, sd = 1)
     sigma_c[c] ~ dnorm(0, sd = 1)
     
   }
@@ -482,8 +484,6 @@ model.code <- nimbleCode({
           
           # previous capture effect
           alpha2_b0 = alpha2_b0,
-          alpha2_sd = alpha2_sd,
-          alpha2_c = alpha2_c[cluster[i]],
           alpha2_b = alpha2_b[1:3],
           
           # spatial scale of movement
@@ -541,8 +541,6 @@ model.code <- nimbleCode({
         
         # previous capture effect
         alpha2_b0 = alpha2_b0,
-        alpha2_sd = alpha2_sd,
-        alpha2_c = alpha2_c[cluster[i]],
         alpha2_b = alpha2_b[1:3],
         
         # spatial scale of movement
@@ -619,7 +617,6 @@ inits <- list(
   
   # previous capture
   alpha2_b0 = rnorm(1, 0, 1),
-  alpha2_sd = runif(1, 0.1, 1),
   alpha2_b = rnorm(3, 0, 1),
   
   # spatial scale
@@ -629,7 +626,6 @@ inits <- list(
   
   # c - random effect scaling parameters (keep close to zero to start)
   lam0_c = rnorm(4, 0, 0.25),
-  alpha2_c = rnorm(4, 0, 0.25),
   sigma_c = rnorm(4, 0, 0.25),
   
   # latent covariates
@@ -652,7 +648,7 @@ monitor <- c(
   
   # detection
   "lam0_b0", "lam0_sd", "lam0_c", "lam0_b", 
-  "alpha2_b0", "alpha2_sd", "alpha2_c", "alpha2_b", 
+  "alpha2_b0", "alpha2_b", 
   "sigma_b0", "sigma_sd", "sigma_c", "sigma_b", 
   
   # states and counts
@@ -698,129 +694,7 @@ model.1.conf <- configureMCMC(model.1, monitors = monitor)
 # 9a. Detection parameters ----
 # ______________________________________________________________________________
 
-# matrices
-# lam0 (lam0_b0, lam0_sd, lam0_c, lam0_b)
-propCov.lam0 <- matrix(
-  
-  data = c(0.022,	-0.004,	-0.010,	-0.007,	-0.007,	-0.007,	-0.018,	-0.003,	-0.005,
-           -0.004,	0.125,	0.040,	0.023,	0.035,	0.035,	0.011,	0.015,	0.006,
-           -0.010,	0.040,	0.021,	0.012,	0.017,	0.015,	0.007,	0.004,	-0.001,
-           -0.007,	0.023,	0.012,	0.012,	0.011,	0.011,	0.000,	-0.004,	-0.003,
-           -0.007,	0.035,	0.017,	0.011,	0.018,	0.013,	0.002,	0.000,	-0.001,
-           -0.007,	0.035,	0.015,	0.011,	0.013,	0.019,	0.004,	-0.001,	-0.002,
-           -0.018,	0.011,	0.007,	0.000,	0.002,	0.004,	0.046,	0.008,	0.007,
-           -0.003,	0.015,	0.004,	-0.004,	0.000,	-0.001,	0.008,	0.045,	0.009,
-           -0.005,	0.006,	-0.001,	-0.003,	-0.001,	-0.002,	0.007,	0.009,	0.060
-  ),
-  
-  nrow = 9,
-  ncol = 9,
-  byrow = T
-  
-)
-
-# alpha2 (alpha2_b0, alpha2_c, alpha2_b[1-2])
-propCov.alpha2 <- matrix(
-  
-  data = c(0.023,		-0.055,	-0.022,	-0.027,	-0.024,	-0.016,	-0.010,	
-           -0.055,		0.638,	0.175,	0.125,	0.033,	0.024,	0.017,	
-           -0.022,		0.175,	0.581,	0.048,	0.030,	-0.010,	0.001,	
-           -0.027,		0.125,	0.048,	0.637,	0.070,	0.009,	-0.011,	
-           -0.024,		0.033,	0.030,	0.070,	0.746,	-0.017,	-0.010,	
-           -0.016,		0.024,	-0.010,	0.009,	-0.017,	0.035,	-0.001,	
-           -0.010,		0.017,	0.001,	-0.011,	-0.010,	-0.001,	0.042
-  ),
-  
-  nrow = 7,
-  ncol = 7,
-  byrow = T
-  
-)
-
-# sigma (sigma_b0, sigma_sd, sigma_c)
-propCov.sigma <- matrix(
-  
-  data = c(0.018,	0.006,	-0.052,	-0.032,	-0.049,	-0.032,
-           0.006,	0.017,	-0.020,	0.019,	-0.030,	0.030,
-           -0.052,	-0.020,	0.210,	0.097,	0.166,	0.100,
-           -0.032,	0.019,	0.097,	0.158,	0.065,	0.146,
-           -0.049,	-0.030,	0.166,	0.065,	0.269,	0.057,
-           -0.032,	0.030,	0.100,	0.146,	0.057,	0.235
-  ),
-  
-  nrow = 6,
-  ncol = 6,
-  byrow = T
-  
-)
-
-# check positive-definiteness
-eigen(propCov.lam0)$values
-eigen(propCov.alpha2)$values
-eigen(propCov.sigma)$values
-
-# check condition
-kappa(propCov.lam0)
-kappa(propCov.alpha2)
-kappa(propCov.sigma)
-
-# remove samplers
-model.1.conf$removeSamplers(
-  
-  c("lam0_b0", "lam0_sd", "lam0_c[1]", "lam0_c[2]", "lam0_c[3]", "lam0_c[4]", "lam0_b[1]", "lam0_b[2]", "lam0_b[3]",
-    "alpha2_b0", "alpha2_c[1]", "alpha2_c[2]", "alpha2_c[3]", "alpha2_c[4]", "alpha2_b[1]", "alpha2_b[2]",
-    "sigma_b0", "sigma_sd", "sigma_c[1]", "sigma_c[2]", "sigma_c[3]", "sigma_c[4]")
-  
-)
-
-# add samplers
-# lam0
-model.1.conf$addSampler(
-  
-  c("lam0_b0", "lam0_sd", "lam0_c[1]", "lam0_c[2]", "lam0_c[3]", "lam0_c[4]", "lam0_b[1]", "lam0_b[2]", "lam0_b[3]"), 
-  
-  type = "RW_block",
-  control = list(
-    
-    "propCov" = propCov.lam0,
-    adaptInterval = 50,
-    adaptScaleOnly = F
-    
-  )
-  
-)
-
-# alpha2
-model.1.conf$addSampler(
-  
-  c("alpha2_b0", "alpha2_c[1]", "alpha2_c[2]", "alpha2_c[3]", "alpha2_c[4]", "alpha2_b[1]", "alpha2_b[2]"), 
-  
-  type = "RW_block",
-  control = list(
-    
-    "propCov" = propCov.alpha2,
-    adaptInterval = 50,
-    adaptScaleOnly = F
-    
-  )
-  
-)
-
-# sigma
-model.1.conf$addSampler(
-  
-  c("sigma_b0", "sigma_sd", "sigma_c[1]", "sigma_c[2]", "sigma_c[3]", "sigma_c[4]"), 
-  
-  type = "RW_block",
-  control = list(
-    
-    "propCov" = propCov.sigma,
-    adaptInterval = 50,
-    adaptScaleOnly = F
-    
-  )
-  
-)
+# none for adapt1
 
 # ______________________________________________________________________________
 # 10. Build MCMC from configuration ----
