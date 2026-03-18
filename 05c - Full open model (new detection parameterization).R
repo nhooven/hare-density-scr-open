@@ -4,12 +4,11 @@
 # EMAIL: nathan.d.hooven@gmail.com
 # BEGAN: 06 Feb 2026
 # COMPLETED: 
-# LAST MODIFIED: 13 Mar 2026
+# LAST MODIFIED: 18 Mar 2026
 # R VERSION: 4.4.3
 
-# 03-15-2026
-# removing REs for alpha2, trying a no blocking and then identity blocking for
-# other detection REs
+# 03-18-2026
+# new parameterization for sigma (just do - alpha1 instead)
 
 # ______________________________________________________________________________
 # 1. Load packages ----
@@ -51,15 +50,13 @@ cat_p <- nimbleFunction(
     
     # previous capture
     alpha2_b0 = double(0),
-    alpha2_sd = double(0),
-    alpha2_c = double(0),
     alpha2_b = double(1),
     
-    # spatial scale of movement
-    sigma_b0 = double(0),
-    sigma_sd = double(0),
-    sigma_c = double(0),
-    sigma_b = double(1),
+    # exponential decay
+    alpha1_b0 = double(0),
+    alpha1_sd = double(0),
+    alpha1_c = double(0),
+    alpha1_b = double(1),
     
     # individual data
     # scalars
@@ -96,18 +93,16 @@ cat_p <- nimbleFunction(
       alpha2_b[2] * ret + 
       alpha2_b[3] * pil
     
-    # sigma and alpha1 - distance decay
-    sigma <- exp(
-      
-      (sigma_b0 + sigma_sd * sigma_c) + 
+    # alpha1 - distance decay
+    # we want this to be between zero and 1
+    # we'll make it negative later
+    logit_alpha1 <- (alpha1_b0 + alpha1_sd * alpha1_c) + 
                    
-        sigma_b[1] * sex + 
-        sigma_b[2] * ret + 
-        sigma_b[3] * pil
-      
-      )
+        alpha1_b[1] * sex + 
+        alpha1_b[2] * ret + 
+        alpha1_b[3] * pil
     
-    alpha1 <- -1 / sigma
+    alpha1 <- 1 / (1 + exp(-logit_alpha1))
     
     # lam0 - baseline hazard of detection [i, k, t]
     lam0 <- exp(
@@ -132,7 +127,7 @@ cat_p <- nimbleFunction(
       d <- sqrt(dx * dx + dy * dy)
       
       # eta - un-normalized probability 
-      eta[j] <- lam0 * exp(alpha1 * d) *
+      eta[j] <- lam0 * exp(-alpha1 * d) *
         
         # inclusion (1 if state == 2, 0 otherwise)
         z *
@@ -185,15 +180,13 @@ bern_p <- nimbleFunction(
     
     # previous capture
     alpha2_b0 = double(0),
-    alpha2_sd = double(0),
-    alpha2_c = double(0),
     alpha2_b = double(1),
     
-    # spatial scale of movement
-    sigma_b0 = double(0),
-    sigma_sd = double(0),
-    sigma_c = double(0),
-    sigma_b = double(1),
+    # exponential decay
+    alpha1_b0 = double(0),
+    alpha1_sd = double(0),
+    alpha1_c = double(0),
+    alpha1_b = double(1),
     
     # individual data
     # scalars
@@ -234,18 +227,14 @@ bern_p <- nimbleFunction(
       alpha2_b[2] * ret + 
       alpha2_b[3] * pil
     
-    # sigma and alpha1 - distance decay
-    sigma <- exp(
+    # alpha1 - distance decay
+    logit_alpha1 <- (alpha1_b0 + alpha1_sd * alpha1_c) + 
       
-      (sigma_b0 + sigma_sd * sigma_c) + 
-        
-        sigma_b[1] * sex + 
-        sigma_b[2] * ret + 
-        sigma_b[3] * pil
-      
-      )
+      alpha1_b[1] * sex + 
+      alpha1_b[2] * ret + 
+      alpha1_b[3] * pil
     
-    alpha1 <- -1 / sigma
+    alpha1 <- 1 / (1 + exp(-logit_alpha1))
     
     # loop over secondary occasions K
     for (k in 1:K) {
@@ -275,7 +264,7 @@ bern_p <- nimbleFunction(
         d <- sqrt(dx * dx + dy * dy)
         
         # eta - un-normalized probability 
-        eta[k, j] <- lam0[k] * exp(alpha1 * d) *
+        eta[k, j] <- lam0[k] * exp(-alpha1 * d) *
           
           # inclusion (1 if state == 2, 0 otherwise)
           z *
@@ -429,9 +418,9 @@ model.code <- nimbleCode({
   # alpha2 - trap response
   alpha2_b0 ~ dnorm(0, sd = 1)  # mean 
   
-  # sigma - spatial scale of movement
-  sigma_b0 ~ dnorm(log(45), sd = 0.5)     # mean
-  sigma_sd ~ T(dt(0, sigma = 1, df = 1), 0, )   # SD - half-Cauchy
+  # alpha1 - distance decay 
+  alpha1_b0 ~ dlogis(0, 1)     # mean
+  alpha1_sd ~ T(dt(0, sigma = 1, df = 1), 0, )   # SD - half-Cauchy
   
   # detection linear coefficients (n = 3)
     # b1 - male effect
@@ -441,7 +430,7 @@ model.code <- nimbleCode({
     
     lam0_b[x] ~ dnorm(0, sd = 1)  
     alpha2_b[x] ~ dnorm(0, sd = 1)  
-    sigma_b[x] ~ dnorm(0, sd = 1)  
+    alpha1_b[x] ~ dlogis(0, 1)
     
   }
   
@@ -449,7 +438,7 @@ model.code <- nimbleCode({
   for (c in 1:4) {
     
     lam0_c[c] ~ dnorm(0, sd = 1)
-    sigma_c[c] ~ dnorm(0, sd = 1)
+    alpha1_c[c] ~ dnorm(0, sd = 1)
     
   }
   
@@ -487,10 +476,10 @@ model.code <- nimbleCode({
           alpha2_b = alpha2_b[1:3],
           
           # spatial scale of movement
-          sigma_b0 = sigma_b0,
-          sigma_sd = sigma_sd,
-          sigma_c = sigma_c[cluster[i]],
-          sigma_b = sigma_b[1:3],
+          alpha1_b0 = alpha1_b0,
+          alpha1_sd = alpha1_sd,
+          alpha1_c = alpha1_c[cluster[i]],
+          alpha1_b = alpha1_b[1:3],
           
           # constants
           sex = sex[i],
@@ -544,10 +533,10 @@ model.code <- nimbleCode({
         alpha2_b = alpha2_b[1:3],
         
         # spatial scale of movement
-        sigma_b0 = sigma_b0,
-        sigma_sd = sigma_sd,
-        sigma_c = sigma_c[cluster[i]],
-        sigma_b = sigma_b[1:3],
+        alpha1_b0 = alpha1_b0,
+        alpha1_sd = alpha1_sd,
+        alpha1_c = alpha1_c[cluster[i]],
+        alpha1_b = alpha1_b[1:3],
         
         # constants
         sex = sex[i],
@@ -620,13 +609,13 @@ inits <- list(
   alpha2_b = rnorm(3, 0, 1),
   
   # spatial scale
-  sigma_b0 = rnorm(1, log(45), 0.5),
-  sigma_sd = runif(1, 0.1, 1),
-  sigma_b = rnorm(3, 0, 1),
+  alpha1_b0 = rnorm(1, 0, 1),
+  alpha1_sd = runif(1, 0.1, 1),
+  alpha1_b = rnorm(3, 0, 1),
   
   # c - random effect scaling parameters (keep close to zero to start)
   lam0_c = rnorm(4, 0, 0.25),
-  sigma_c = rnorm(4, 0, 0.25),
+  alpha1_c = rnorm(4, 0, 0.25),
   
   # latent covariates
   sex = ifelse(is.na(data.list$sex) == F, NA, 0)
@@ -649,7 +638,7 @@ monitor <- c(
   # detection
   "lam0_b0", "lam0_sd", "lam0_c", "lam0_b", 
   "alpha2_b0", "alpha2_b", 
-  "sigma_b0", "sigma_sd", "sigma_c", "sigma_b", 
+  "alpha1_b0", "alpha1_sd", "alpha1_c", "alpha1_b", 
   
   # states and counts
   "N", "N.avail", "z"
