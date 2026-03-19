@@ -4,7 +4,7 @@
 # EMAIL: nathan.d.hooven@gmail.com
 # BEGAN: 06 Feb 2026
 # COMPLETED: 
-# LAST MODIFIED: 04 Mar 2026
+# LAST MODIFIED: 19 Mar 2026
 # R VERSION: 4.4.3
 
 # ______________________________________________________________________________
@@ -39,16 +39,27 @@ cat_p <- nimbleFunction(
     
     # detection parameters
     # stochastic from priors, all scalar
-    alpha0_b0 = double(0),
-    alpha0_b1 = double(0),
+    # baseline hazard of detection
+    lam0_b0 = double(0),
+    lam0_sd = double(0),
+    lam0_c = double(0),
+    lam0_b = double(1),
+    
+    # previous capture
     alpha2_b0 = double(0),
-    alpha2_b1 = double(0),
-    sigma_b0 = double(0),
-    sigma_b1 = double(0),
+    alpha2_b = double(1),
+    
+    # exponential decay
+    alpha1_b0 = double(0),
+    alpha1_sd = double(0),
+    alpha1_c = double(0),
+    alpha1_b = double(1),
     
     # individual data
     # scalars
     sex = double(0),          # sex[i]
+    ret = double(0),          # det.ret[i, t]
+    pil = double(0),          # det.pil[i, t]
     z = double(0),            # z[i, t]
     prev.cap = double(0),     # prev.cap[i, k, t]
     trap.deaths = double(0),  # trap.deaths[i, k ,t]
@@ -72,12 +83,36 @@ cat_p <- nimbleFunction(
     p.sum <- 0.0       # for subtracting, "trap 37"
     
     # detection
-    alpha2 <- alpha2_b0 + alpha2_b1 * sex
-    sigma <- exp(sigma_b0 + sigma_b1 * sex)
-    alpha1 <- -1 / sigma
+    # alpha2 - previous capture effect
+    alpha2 <- alpha2_b0 + 
+      
+      alpha2_b[1] * sex + 
+      alpha2_b[2] * ret + 
+      alpha2_b[3] * pil
     
-    # alpha0 - baseline hazard of detection [i, k, t]
-    alpha0 <- exp(alpha0_b0 + alpha0_b1 * sex + alpha2 * prev.cap)
+    # alpha1 - distance decay
+    # we want this to be between zero and 1
+    # we'll make it negative later
+    logit_alpha1 <- (alpha1_b0 + alpha1_sd * alpha1_c) + 
+      
+      alpha1_b[1] * sex + 
+      alpha1_b[2] * ret + 
+      alpha1_b[3] * pil
+    
+    alpha1 <- 1 / (1 + exp(-logit_alpha1))
+    
+    # lam0 - baseline hazard of detection [i, k, t]
+    lam0 <- exp(
+      
+      (lam0_b0 + lam0_sd * lam0_c) + 
+        
+        lam0_b[1] * sex + 
+        lam0_b[2] * ret + 
+        lam0_b[3] * pil + 
+        
+        alpha2 * prev.cap
+      
+    )
     
     # loop over traps [J]
     for (j in 1:J) {
@@ -89,7 +124,7 @@ cat_p <- nimbleFunction(
       d <- sqrt(dx * dx + dy * dy)
       
       # eta - un-normalized probability 
-      eta[j] <- alpha0 * exp(alpha1 * d) *
+      eta[j] <- lam0 * exp(-alpha1 * d) *
         
         # inclusion (1 if state == 2, 0 otherwise)
         z *
@@ -134,18 +169,28 @@ bern_p <- nimbleFunction(
   run = function (
     
     # detection parameters
-    # stochastic from priors, all scalar
-    alpha0_b0 = double(0),
-    alpha0_b1 = double(0),
+    # baseline hazard of detection
+    lam0_b0 = double(0),
+    lam0_sd = double(0),
+    lam0_c = double(0),
+    lam0_b = double(1),
+    
+    # previous capture
     alpha2_b0 = double(0),
-    alpha2_b1 = double(0),
-    sigma_b0 = double(0),
-    sigma_b1 = double(0),
+    alpha2_b = double(1),
+    
+    # exponential decay
+    alpha1_b0 = double(0),
+    alpha1_sd = double(0),
+    alpha1_c = double(0),
+    alpha1_b = double(1),
     
     # individual data
     # scalars
-    sex = double(0),        # sex[i]
-    z = double(0),          # z2[i, t]
+    sex = double(0),          # sex[i]
+    ret = double(0),          # det.ret[i, t]
+    pil = double(0),          # det.pil[i, t]
+    z = double(0),            # z2[i, t]
     
     # vectors
     s = double(1),            # [2] - s[i, 1:2, t]
@@ -165,24 +210,46 @@ bern_p <- nimbleFunction(
   ) {
     
     # declare data types
-    alpha0 <- nimNumeric(K, 0.0)
+    lam0 <- nimNumeric(K, 0.0)
     eta <- nimMatrix(0.0, nrow = K, ncol = J)
     p <- nimMatrix(0.0, nrow = K, ncol = J + 1)
     eta.denom <- nimNumeric(length = K, 0.0)
     p.sum <- nimNumeric(K, 0.0)       # for subtracting, "trap 37"
     
     # detection
-    alpha2 <- alpha2_b0 + alpha2_b1 * sex
-    sigma <- exp(sigma_b0 + sigma_b1 * sex)
-    alpha1 <- -1 / sigma
+    # alpha2 - previous capture effect
+    alpha2 <- alpha2_b0 +
+      
+      alpha2_b[1] * sex + 
+      alpha2_b[2] * ret + 
+      alpha2_b[3] * pil
+    
+    # alpha1 - distance decay
+    logit_alpha1 <- (alpha1_b0 + alpha1_sd * alpha1_c) + 
+      
+      alpha1_b[1] * sex + 
+      alpha1_b[2] * ret + 
+      alpha1_b[3] * pil
+    
+    alpha1 <- 1 / (1 + exp(-logit_alpha1))
     
     # loop over secondary occasions K
     for (k in 1:K) {
       
       eta.denom[k] <- 1.0
       
-      # alpha0 - baseline hazard of detection [i, k, t]
-      alpha0[k] <- exp(alpha0_b0 + alpha0_b1 * sex + alpha2 * prev.cap[k])
+      # lam0 - baseline hazard of detection [i, k, t]
+      lam0[k] <- exp(
+        
+        (lam0_b0 + lam0_sd * lam0_c) + 
+          
+          lam0_b[1] * sex + 
+          lam0_b[2] * ret + 
+          lam0_b[3] * pil + 
+          
+          alpha2 * prev.cap[k]
+        
+      )
       
       # and loop over traps [J]
       for (j in 1:J) {
@@ -194,7 +261,7 @@ bern_p <- nimbleFunction(
         d <- sqrt(dx * dx + dy * dy)
         
         # eta - un-normalized probability 
-        eta[k, j] <- alpha0[k] * exp(alpha1 * d) *
+        eta[k, j] <- lam0[k] * exp(-alpha1 * d) *
           
           # inclusion (1 if state == 2, 0 otherwise)
           z *
@@ -260,32 +327,96 @@ bern_p <- nimbleFunction(
 model.code <- nimbleCode({
   
   # ___________________________
-  # OPEN SUB-MODEL
+  # OPEN STATE-SPACE SUB-MODEL
   # ___________________________
   
   # demographic parameter priors
-  # phi - persistence
-  phi ~ dunif(0, 1)
+  # phi - persistence (logit scale)
+  phi_b0 ~ dlogis(0, 1)
+  phi_sd ~ T(dt(0, sigma = 1, df = 1), 0, )    # SD - half-Cauchy
   
-  # rho - per capita recruitment
-  rho ~ dunif(0, 7)
+  # rho - per capita recruitment (log scale)
+  rho_b0 ~ dunif(log(0.001), log(7))
+  rho_sd ~ T(dt(0, sigma = 1, df = 1), 0, )    # SD - half-Cauchy
   
-  # gamma - probability of available individual being recruited [u, t]
-  for (u in 1:U) {
+  # linear coefficients on open parameters (n = 7)
+  # b1 - male effect
+  # b2 - post1 effect
+  # b3 - post2 effect
+  # b4 - ret x post1 effect
+  # b5 - ret x post2 effect
+  # b6 - pil x post1 effect
+  # b7 - pil x post2 effect
+  for (x in 1:7) {
     
-    # 2nd year (by site) to year 4
-    for (t in (first.year[u] + 1):YR) {
+    phi_b[x] ~ dlogis(0, 1)        # logistic prior to avoid logit woes
+    rho_b[x] ~ dnorm(0, sd = 1)
+    
+  }
+  
+  # cluster-specific random scaling factors
+  for (c in 1:4) {
+    
+    phi_c[c] ~ dnorm(0, sd = 1)
+    rho_c[c] ~ dnorm(0, sd = 1)
+    
+  }
+  
+  # calculate phi and rho by individual
+  for (i in 1:M) {
+    
+    for (t in first.year[site[i]]:YR) {
       
-      # logit constraint is important
-      logit(gamma[u, t - 1]) <- log(N.all[u, 1, t - 1] + 1e-6) + 
-                                    log(rho) - 
-                                    log(N.all[u, 2, t - 1] + 1e-6)
+      # phi
+      phi[i, t] <- ilogit(
+        
+        (phi_b0 + phi_sd * phi_c[cluster[i]]) +
+          
+          phi_b[1] * sex[i] +
+          phi_b[2] * op.post1[i, t] +
+          phi_b[3] * op.post2[i, t] +
+          phi_b[4] * op.ret[i] * op.post1[i, t] +
+          phi_b[5] * op.ret[i] * op.post2[i, t] +
+          phi_b[6] * op.pil[i] * op.post1[i, t] +
+          phi_b[7] * op.pil[i] * op.post2[i, t]
+        
+      )
+      
+      # rho
+      rho[i, t] <- exp(
+        
+        (rho_b0 + rho_sd * rho_c[cluster[i]]) +
+          
+          rho_b[1] * sex[i] +
+          rho_b[2] * op.post1[i, t] +
+          rho_b[3] * op.post2[i, t] +
+          rho_b[4] * op.ret[i] * op.post1[i, t] +
+          rho_b[5] * op.ret[i] * op.post2[i, t] +
+          rho_b[6] * op.pil[i] * op.post1[i, t] +
+          rho_b[7] * op.pil[i] * op.post2[i, t]
+        
+      )
       
     } # YR
     
-  } # U
+  } # M
   
-  # omegas - transition matrices
+  # gamma - probability of entry
+  # conditional on how many individuals were in states 2 and 1 in t - 1
+  # calculate by individual-year
+  for (i in 1:M) {
+    
+    for (t in (first.year[site[i]] + 1):YR) {
+      
+      logit(gamma[i, t - 1]) <- log(N[site[i], t - 1] + 1e-6) +
+                                log(rho[i, t - 1]) -
+                                log(N.avail[site[i], t - 1] + 1e-6)
+      
+    } # YR
+    
+  } # M
+  
+  # omega1 - initial state matrix
   for (u in 1:U) {
     
     # psi - initial inclusion [U]
@@ -297,31 +428,9 @@ model.code <- nimbleCode({
     omega1[2, u] <- psi[u]              # recruited with p = psi
     omega1[3, u] <- 0.0                 # cannot start dead
     
-    # omega - transition matrix [3 x 3, U, YR - 1]
-    # rows: state at t
-    # columns: state at t + 1
-    for (t in (first.year[u]):(YR - 1)) {
-      
-      # ENTERED
-      omega[2, 1, u, t] <- 0.0
-      omega[2, 2, u, t] <- phi
-      omega[2, 3, u, t] <- 1 - phi
-      
-      # DIED
-      omega[3, 1, u, t] <- 0.0
-      omega[3, 2, u, t] <- 0.0
-      omega[3, 3, u, t] <- 1.0
-      
-      # NOT ENTERED
-      omega[1, 1, u, t] <- 1 - gamma[u, t]
-      omega[1, 2, u, t] <- gamma[u, t]
-      omega[1, 3, u, t] <- 0.0
-      
-    } # YR - 1
-    
   } # U
   
-  # open likelihood - by individual [M]
+  # open likelihood [M]
   for (i in 1:M) {
     
     # initial state (first.year by site)
@@ -330,7 +439,25 @@ model.code <- nimbleCode({
     # subsequent states (YR > first.year)
     for (t in (first.year[site[i]]):(YR - 1)) {
       
-      z[i, t + 1] ~ dcat(omega[z[i, t], 1:3, site[i], t])
+      # omega - open state probabilities [3, 3, M, t]
+      # rows: state at t
+      # columns: state at t + 1
+      # ENTERED
+      omega[2, 1, i, t] <- 0.0
+      omega[2, 2, i, t] <- phi[i, t]
+      omega[2, 3, i, t] <- 1 - phi[i, t]
+      
+      # DIED
+      omega[3, 1, i, t] <- 0.0
+      omega[3, 2, i, t] <- 0.0
+      omega[3, 3, i, t] <- 1.0
+      
+      # NOT ENTERED
+      omega[1, 1, i, t] <- 1 - gamma[i, t]
+      omega[1, 2, i, t] <- gamma[i, t]
+      omega[1, 3, i, t] <- 0.0
+      
+      z[i, t + 1] ~ dcat(omega[z[i, t], 1:3, i, t])
       
     } # YR - 1
     
@@ -341,17 +468,36 @@ model.code <- nimbleCode({
   # ___________________________
   
   # detection parameter priors
-  # alpha0 - baseline detection (log scale)
-  alpha0_b0 ~ dnorm(0, sd = 1)  # intercept
-  alpha0_b1 ~ dnorm(0, sd = 1)  # effect of male
+  # lam0 - baseline hazard detection (log scale)
+  lam0_b0 ~ dnorm(0, sd = 1)  # mean 
+  lam0_sd ~ T(dt(0, sigma = 1, df = 1), 0, )    # SD - half-Cauchy
   
   # alpha2 - trap response
-  alpha2_b0 ~ dnorm(0, sd = 1)  # intercept
-  alpha2_b1 ~ dnorm(0, sd = 1)  # effect of male
+  alpha2_b0 ~ dnorm(0, sd = 1)  # mean 
   
-  # sigma - spatial scale of movement
-  sigma_b0 ~ dnorm(log(45), sd = 0.5)     # intercept
-  sigma_b1 ~ dnorm(0, sd = 1)             # effect of male
+  # alpha1 - distance decay 
+  alpha1_b0 ~ dlogis(0, 1)     # mean
+  alpha1_sd ~ T(dt(0, sigma = 1, df = 1), 0, )   # SD - half-Cauchy
+  
+  # detection linear coefficients (n = 3)
+  # b1 - male effect
+  # b2 - ret effect
+  # b3 - pil effect
+  for (x in 1:3) {
+    
+    lam0_b[x] ~ dnorm(0, sd = 1)  
+    alpha2_b[x] ~ dnorm(0, sd = 1)  
+    alpha1_b[x] ~ dlogis(0, 1)
+    
+  }
+  
+  # c - cluster-specific random scaling factors
+  for (c in 1:4) {
+    
+    lam0_c[c] ~ dnorm(0, sd = 1)
+    alpha1_c[c] ~ dnorm(0, sd = 1)
+    
+  }
   
   # pooled sex probability
   psi.sex ~ dunif(0, 1)
@@ -376,13 +522,26 @@ model.code <- nimbleCode({
         # calculate categorical probability vector 
         p[i, 1:(J + 1), k, t] <- cat_p(
           
-          alpha0_b0 = alpha0_b0,
-          alpha0_b1 = alpha0_b1,
+          # baseline hazard of detection
+          lam0_b0 = lam0_b0,
+          lam0_sd = lam0_sd,
+          lam0_c = lam0_c[cluster[i]],
+          lam0_b = lam0_b[1:3],
+          
+          # previous capture effect
           alpha2_b0 = alpha2_b0,
-          alpha2_b1 = alpha2_b1,
-          sigma_b0 = sigma_b0,
-          sigma_b1 = sigma_b1,
+          alpha2_b = alpha2_b[1:3],
+          
+          # spatial scale of movement
+          alpha1_b0 = alpha1_b0,
+          alpha1_sd = alpha1_sd,
+          alpha1_c = alpha1_c[cluster[i]],
+          alpha1_b = alpha1_b[1:3],
+          
+          # constants
           sex = sex[i],
+          ret = det.ret[i, t],
+          pil = det.pil[i, t],
           z = z2[i, t],
           s = s[i, 1:2, t],
           prev.cap = prev.cap[i, k, t],
@@ -420,13 +579,26 @@ model.code <- nimbleCode({
       # calculate Bernoulli probability
       p.zero[i, t] <- bern_p(
         
-        alpha0_b0 = alpha0_b0,
-        alpha0_b1 = alpha0_b1,
+        # baseline hazard of detection
+        lam0_b0 = lam0_b0,
+        lam0_sd = lam0_sd,
+        lam0_c = lam0_c[cluster[i]],
+        lam0_b = lam0_b[1:3],
+        
+        # previous capture effect
         alpha2_b0 = alpha2_b0,
-        alpha2_b1 = alpha2_b1,
-        sigma_b0 = sigma_b0,
-        sigma_b1 = sigma_b1,
+        alpha2_b = alpha2_b[1:3],
+        
+        # spatial scale of movement
+        alpha1_b0 = alpha1_b0,
+        alpha1_sd = alpha1_sd,
+        alpha1_c = alpha1_c[cluster[i]],
+        alpha1_b = alpha1_b[1:3],
+        
+        # constants
         sex = sex[i],
+        ret = det.ret[i, t],
+        pil = det.pil[i, t],
         z = z2[i, t],
         s = s[i, 1:2, t],
         prev.cap = prev.cap[i, 1:8, t],
@@ -449,13 +621,14 @@ model.code <- nimbleCode({
   # DERIVED QUANTITIES
   # ___________________________
   
-  # N.all - counts of state 2 and state 1 individuals [U, 2, YR]
+  # N - counts of state 2 individuals [U, YR]
+  # N.avail - counts of state 1 individuals [U, YR]
   for (u in 1:U) {
     
     for (t in 1:YR) {
       
-      N.all[u, 1, t] <- inprod(step(z[1:M, t] - 1.5) * step(2.5 - z[1:M, t]), which.site[1:M, u])
-      N.all[u, 2, t] <- inprod(step(z[1:M, t] - 0.5) * step(1.5 - z[1:M, t]), which.site[1:M, u])
+      N[u, t] <- inprod(step(z[1:M, t] - 1.5) * step(2.5 - z[1:M, t]), which.site[1:M, u])
+      N.avail[u, t] <- inprod(step(z[1:M, t] - 0.5) * step(1.5 - z[1:M, t]), which.site[1:M, u])
       
     } # YR
     
@@ -471,21 +644,51 @@ inits <- list(
   
   # STOCHASTIC
   # OPEN
-  phi = runif(1, 0, 1),
-  rho = runif(1, 0, 7),
+  phi_b0 = rlogis(1, 0, 1),
+  phi_sd = rexp(1, 1),
+  phi_b = rlogis(7, 0, 1), 
+  
+  # rho - per capita recruitment (log scale)
+  rho_b0 = runif(1, log(0.001), log(7)),
+  rho_sd = rexp(1, 1),
+  rho_b = rnorm(7, 0, sd = 1),
+  
+  # cluster-specific random scaling factors
+  phi_c = rnorm(4, 0, sd = 1),
+  rho_c = rnorm(4, 0, sd = 1),
+  
+  # initial inclusion
   psi = runif(constant.list$U, 0, 1),
   psi.sex = runif(1, 0, 1),
+  
+  # states
   z = state.inits,       
   
   # CLOSED
-  s = array(runif(constant.list$M * constant.list$YR, -200, 200),   
+  # ACs - we'll keep these pretty close to the trap array to start
+  s = array(runif(constant.list$M * constant.list$YR, -50, 50),   
             dim = c(constant.list$M, 2, constant.list$YR)),
-  alpha0_b0 = rnorm(1, 0, 1),
-  alpha0_b1 = rnorm(1, 0, 1),
+  
+  # detection
+  # baseline hazard
+  lam0_b0 = rnorm(1, 0, 1),
+  lam0_sd = rexp(1, 1),
+  lam0_b = rnorm(3, 0, 1),
+  
+  # previous capture
   alpha2_b0 = rnorm(1, 0, 1),
-  alpha2_b1 = rnorm(1, 0, 1),
-  sigma_b0 = rnorm(1, log(45), 0.5),
-  sigma_b1 = rnorm(1, 0, 1),
+  alpha2_b = rnorm(3, 0, 1),
+  
+  # spatial scale
+  alpha1_b0 = rnorm(1, 0, 1),
+  alpha1_sd = rexp(1, 1),
+  alpha1_b = rnorm(3, 0, 1),
+  
+  # c - random effect scaling parameters (keep close to zero to start)
+  lam0_c = rnorm(4, 0, 0.25),
+  alpha1_c = rnorm(4, 0, 0.25),
+  
+  # latent covariates
   sex = ifelse(is.na(data.list$sex) == F, NA, 0)
   
 )
@@ -494,15 +697,24 @@ inits <- list(
 # 5. Parameters to monitor ----
 # ______________________________________________________________________________
 
-# will need to include sex in the final model, along with the activity centers
-# can probably drop gamma
+# for PPC: z, sex, AC coordinates
+# can probably drop gamma, and psi after initial testing
 # N.all can be split, and we won't need the available after tuning the augmented guys
 
 monitor <- c(
   
-  "psi", "phi", "rho", "gamma",
-  "alpha0_b0", "alpha0_b1", "alpha2_b0", "alpha2_b1", "sigma_b0", "sigma_b1",
-  "N.all", "z"
+  # open
+  "phi_b0", "phi_sd", "phi_c", "phi_b", 
+  "rho_b0", "rho_sd", "rho_c", "rho_b",
+  "psi", 
+  
+  # detection
+  "lam0_b0", "lam0_sd", "lam0_c", "lam0_b", 
+  "alpha2_b0", "alpha2_b", 
+  "alpha1_b0", "alpha1_sd", "alpha1_c", "alpha1_b", 
+  
+  # states and counts
+  "N", "N.avail", "z"
   
 )
 
@@ -541,73 +753,73 @@ model.1.conf <- configureMCMC(model.1, monitors = monitor)
 #______________________________________________________________________________
 # 9. Add block samplers ----
 # ______________________________________________________________________________
-# 9a. Detection parameters ----
+# 9a. Open parameters ----
 # ______________________________________________________________________________
 
-# proposed covariance matrices
-# alpha0 and alpha2
-propCov.alpha <- matrix(
+# remove samplers
+model.1.conf$removeSamplers(
   
-  c(0.013, -0.013, -0.008, 0.007,
-    -0.013, 0.025, 0.008, -0.017,
-    -0.008, 0.008, 0.009, -0.008,
-    0.007, -0.017, -0.008, 0.022),
-  
-  nrow = 4,
-  ncol = 4,
-  byrow = T
-  
+  c("phi_b0", "phi_sd", "phi_c[1]", "phi_c[2]", "phi_c[3]", "phi_c[4]",
+    "rho_b0", "rho_sd", "rho_c[1]", "rho_c[2]", "rho_c[3]", "rho_c[4]")
 )
 
-# sigma
-propCov.sigma <- matrix(
-  
-  c(0.002, -0.002,
-    -0.002, 0.004),
-  
-  nrow = 2,
-  ncol = 2,
-  byrow = T
-  
-)
-
-# check positive-definiteness
-eigen(propCov.alpha)$values
-eigen(propCov.sigma)$values
-
-# check condition
-kappa(propCov.alpha)
-kappa(propCov.sigma)
-
-model.1.conf$removeSamplers(c("alpha0_b0", "alpha0_b1",
-                              "alpha2_b0", "alpha2_b1",
-                              "sigma_b0", "sigma_b1"))
-
+# add samplers
+# phi
 model.1.conf$addSampler(
   
-  c("alpha0_b0", "alpha0_b1", "alpha2_b0", "alpha2_b1"), 
+  c("phi_b0", "phi_sd", "phi_c[1]", "phi_c[2]", "phi_c[3]", "phi_c[4]"), 
   
   type = "RW_block",
   control = list(
     
-    "propCov" = propCov.alpha,
-    
+    adaptInterval = 50,
     adaptScaleOnly = F
     
-    ))
+  )
+  
+)
 
+# rho
 model.1.conf$addSampler(
   
-  c("sigma_b0", "sigma_b1"), 
+  c("rho_b0", "rho_sd", "rho_c[1]", "rho_c[2]", "rho_c[3]", "rho_c[4]"), 
   
   type = "RW_block",
   control = list(
     
-    "propCov" = propCov.sigma,
-    
+    adaptInterval = 50,
     adaptScaleOnly = F
     
-  ))
+  )
+  
+)
+
+# ______________________________________________________________________________
+# 9b. Detection parameters ----
+# ______________________________________________________________________________
+
+# remove samplers
+model.1.conf$removeSamplers(
+  
+  c("lam0_b0", "lam0_sd", "lam0_c[1]", "lam0_c[2]", "lam0_c[3]", "lam0_c[4]",
+    "alpha1_b0", "alpha1_sd", "alpha1_c[1]", "alpha1_c[2]", "alpha1_c[3]", "alpha1_c[4]")
+  )
+
+# add samplers
+model.1.conf$addSampler(
+  
+  c("lam0_b0", "lam0_sd", "lam0_c[1]", "lam0_c[2]", "lam0_c[3]", "lam0_c[4]",
+    "alpha1_b0", "alpha1_sd", "alpha1_c[1]", "alpha1_c[2]", "alpha1_c[3]", "alpha1_c[4]"), 
+  
+  type = "RW_block",
+  control = list(
+    
+    adaptInterval = 50,
+    adaptScaleOnly = F
+    
+  )
+  
+)
 
 # ______________________________________________________________________________
 # 10. Build MCMC from configuration ----
