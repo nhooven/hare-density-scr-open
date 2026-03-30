@@ -4,7 +4,7 @@
 # EMAIL: nathan.d.hooven@gmail.com
 # BEGAN: 12 Jan 2026
 # COMPLETED: 29 Jan 2026
-# LAST MODIFIED: 09 Mar 2026
+# LAST MODIFIED: 25 Mar 2026
 # R VERSION: 4.4.3
 
 # ______________________________________________________________________________
@@ -663,8 +663,9 @@ op.ret[which(cov.site %in% c(1, 5, 8, 10))] <- 1
 op.pil[which(cov.site %in% c(2, 4, 7, 11))] <- 1
 
 # post treatment indicators 
-op.post1[ , 3] <- 1
-op.post2[ , 4] <- 1
+# importantly, these must represent t - 1 to respect the lagged model specification
+op.post1[ , 2] <- 1
+op.post2[ , 3] <- 1
 
 # ______________________________________________________________________________
 # 8e. Sex ----

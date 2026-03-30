@@ -4,7 +4,7 @@
 # EMAIL: nathan.d.hooven@gmail.com
 # BEGAN: 06 Feb 2026
 # COMPLETED: 
-# LAST MODIFIED: 20 Mar 2026
+# LAST MODIFIED: 25 Mar 2026
 # R VERSION: 4.4.3
 
 # Here, we'll drop the cluster random intercepts for the detection parameters
@@ -325,6 +325,9 @@ model.code <- nimbleCode({
   # OPEN STATE-SPACE SUB-MODEL
   # ___________________________
   
+  # t1 -> t2 -> t3 -> t4
+  #   tr1   tr2   tr3
+  
   # demographic parameter priors
   # phi - persistence (logit scale)
   phi_b0 ~ dlogis(0, 1)
@@ -348,7 +351,7 @@ model.code <- nimbleCode({
     
   }
   
-  # linear coefficients on phi parameters (n = 7)
+  # linear coefficients on rho parameters (n = 7)
     # b1 - post1 effect
     # b2 - post2 effect
     # b3 - ret x post1 effect
@@ -822,8 +825,8 @@ mcmc.1.comp <- compileNimble(mcmc.1, project = model.1)
 model.1.run <- runMCMC(
   
   mcmc = mcmc.1.comp,
-  niter = 10000,
-  nburnin = 5000,
+  niter = 100,
+  nburnin = 50,
   nchains = 1,
   samplesAsCodaMCMC = TRUE
   
