@@ -4,7 +4,7 @@
 # EMAIL: nathan.d.hooven@gmail.com
 # BEGAN: 14 Jan 2026
 # COMPLETED: 20 Jan 2026
-# LAST MODIFIED: 10 Mar 2026
+# LAST MODIFIED: 13 Apr 2026
 # R VERSION: 4.4.3
 
 # ______________________________________________________________________________
@@ -52,6 +52,9 @@ S.lim <- readRDS("for_model/S_lim.rds")
 
 # S areas
 S.area <- readRDS("for_model/S_area.rds")
+
+# landscape variables
+lsm <- read.csv("for_model/lsm_demo.csv")
 
 # ______________________________________________________________________________
 # 3. Data cleaning ----
@@ -208,8 +211,9 @@ aug.op.ret[which(aug.siteID %in% c(1, 5, 8, 10))] <- 1
 aug.op.pil[which(aug.siteID %in% c(2, 4, 7, 11))] <- 1
 
 # post treatment indicators 
-aug.op.post1[ , 3] <- 1
-aug.op.post2[ , 4] <- 1
+# again, these must respect the lagged model specification
+aug.op.post1[ , 2] <- 1
+aug.op.post2[ , 3] <- 1
 
 # bind all indiv covs together
 indiv.covs.M <- list(
@@ -265,6 +269,20 @@ for (i in 1:M) {
 }
 
 # ______________________________________________________________________________
+# 6c. Landscape metrics ----
+# ______________________________________________________________________________
+
+lsm.1 <- lsm %>% dplyr::select(p.dm, p.o) %>% mutate(site = 1:12)
+
+# attribute correct variables
+dm.M <- lsm.1$p.dm[indiv.covs.M[[1]]]
+o.M <- lsm.1$p.o[indiv.covs.M[[1]]]
+
+# standardize
+dm.M.s <- (dm.M - mean(dm.M)) / sd(dm.M)
+o.M.s <- (o.M - mean(o.M)) / sd(o.M)
+
+# ______________________________________________________________________________
 # 7. Build lists for model ----
 # ______________________________________________________________________________
 # 7a. Constants ----
@@ -313,7 +331,11 @@ constant.list <- list(
   op.ret = indiv.covs.M[[5]],
   op.pil = indiv.covs.M[[6]],
   op.post1 = indiv.covs.M[[7]],
-  op.post2 = indiv.covs.M[[8]]
+  op.post2 = indiv.covs.M[[8]],
+  
+  # landscape covariates [M]
+  op.dm = dm.M.s,
+  op.o = o.M.s
   
 )
 
@@ -550,6 +572,8 @@ state.inits <- list()
 state.inits[[1]] <- t(apply(open.ch.all, 1, make_init_states))
 state.inits[[2]] <- t(apply(open.ch.all, 1, make_init_states))
 state.inits[[3]] <- t(apply(open.ch.all, 1, make_init_states))
+state.inits[[4]] <- t(apply(open.ch.all, 1, make_init_states))
+state.inits[[5]] <- t(apply(open.ch.all, 1, make_init_states))
 
 # if any individuals whose site's first.year == 2 have a 3 for t == 2,
 # this breaks the logic in the model. Flip all inits with this case to 2
@@ -582,11 +606,15 @@ state.inits.1 <- list()
 state.inits.1[[1]] <- flip_impossible_t2(state.inits[[1]])
 state.inits.1[[2]] <- flip_impossible_t2(state.inits[[2]])
 state.inits.1[[3]] <- flip_impossible_t2(state.inits[[3]])
+state.inits.1[[4]] <- flip_impossible_t2(state.inits[[4]])
+state.inits.1[[5]] <- flip_impossible_t2(state.inits[[5]])
 
 # check that it did the correct thing
 sum(state.inits.1[[1]][which.first.2, 2] == 3, na.rm = T)
 sum(state.inits.1[[2]][which.first.2, 2] == 3, na.rm = T)
 sum(state.inits.1[[3]][which.first.2, 2] == 3, na.rm = T)
+sum(state.inits.1[[4]][which.first.2, 2] == 3, na.rm = T)
+sum(state.inits.1[[5]][which.first.2, 2] == 3, na.rm = T)
 
 # check validity
 # merge states function
@@ -617,20 +645,28 @@ merge_states <- function (open.ch.all, state.inits) {
 merge.1 <- merge_states(open.ch.all, state.inits = state.inits[[1]])
 merge.2 <- merge_states(open.ch.all, state.inits = state.inits[[2]])
 merge.3 <- merge_states(open.ch.all, state.inits = state.inits[[3]])
+merge.4 <- merge_states(open.ch.all, state.inits = state.inits[[4]])
+merge.5 <- merge_states(open.ch.all, state.inits = state.inits[[5]])
 
 sum(apply(merge.1, 1, is.unsorted))
 sum(apply(merge.2, 1, is.unsorted))
 sum(apply(merge.3, 1, is.unsorted))
+sum(apply(merge.4, 1, is.unsorted))
+sum(apply(merge.5, 1, is.unsorted))
 
 # check that the number of NAs (total known states) is correct (should be 1640)
 sum(is.na(state.inits[[1]]))
 sum(is.na(state.inits[[2]]))
 sum(is.na(state.inits[[3]]))
+sum(is.na(state.inits[[4]]))
+sum(is.na(state.inits[[5]]))
 
 # check that there are no NAs in latent positions
 sum(is.na(state.inits[[1]][is.na(open.ch.all)]))
 sum(is.na(state.inits[[2]][is.na(open.ch.all)]))
 sum(is.na(state.inits[[3]][is.na(open.ch.all)]))
+sum(is.na(state.inits[[4]][is.na(open.ch.all)]))
+sum(is.na(state.inits[[5]][is.na(open.ch.all)]))
 
 # ______________________________________________________________________________
 # 8. Check likelihood-breaking in the closed CH ----
