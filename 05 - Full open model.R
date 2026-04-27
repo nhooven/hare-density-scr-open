@@ -4,7 +4,7 @@
 # EMAIL: nathan.d.hooven@gmail.com
 # BEGAN: 06 Feb 2026
 # COMPLETED: 
-# LAST MODIFIED: 19 Mar 2026
+# LAST MODIFIED: 13 Apr 2026
 # R VERSION: 4.4.3
 
 # ______________________________________________________________________________
@@ -17,9 +17,9 @@ library(nimble)
 # 2. Read in data ----
 # ______________________________________________________________________________
 
-constant.list <- readRDS("for_model/constants.rds")
-data.list <- readRDS("for_model/data.rds")
-state.inits <- readRDS("for_model/state_inits.rds")
+constant.list <- readRDS("constants.rds")
+data.list <- readRDS("data.rds")
+state.inits <- readRDS("state_inits.rds")
 
 # which state inits? 
 chain = 1
@@ -41,8 +41,6 @@ cat_p <- nimbleFunction(
     # stochastic from priors, all scalar
     # baseline hazard of detection
     lam0_b0 = double(0),
-    lam0_sd = double(0),
-    lam0_c = double(0),
     lam0_b = double(1),
     
     # previous capture
@@ -51,8 +49,6 @@ cat_p <- nimbleFunction(
     
     # exponential decay
     alpha1_b0 = double(0),
-    alpha1_sd = double(0),
-    alpha1_c = double(0),
     alpha1_b = double(1),
     
     # individual data
@@ -93,7 +89,7 @@ cat_p <- nimbleFunction(
     # alpha1 - distance decay
     # we want this to be between zero and 1
     # we'll make it negative later
-    logit_alpha1 <- (alpha1_b0 + alpha1_sd * alpha1_c) + 
+    logit_alpha1 <- alpha1_b0 + 
       
       alpha1_b[1] * sex + 
       alpha1_b[2] * ret + 
@@ -104,7 +100,7 @@ cat_p <- nimbleFunction(
     # lam0 - baseline hazard of detection [i, k, t]
     lam0 <- exp(
       
-      (lam0_b0 + lam0_sd * lam0_c) + 
+      lam0_b0 + 
         
         lam0_b[1] * sex + 
         lam0_b[2] * ret + 
@@ -171,8 +167,6 @@ bern_p <- nimbleFunction(
     # detection parameters
     # baseline hazard of detection
     lam0_b0 = double(0),
-    lam0_sd = double(0),
-    lam0_c = double(0),
     lam0_b = double(1),
     
     # previous capture
@@ -181,8 +175,6 @@ bern_p <- nimbleFunction(
     
     # exponential decay
     alpha1_b0 = double(0),
-    alpha1_sd = double(0),
-    alpha1_c = double(0),
     alpha1_b = double(1),
     
     # individual data
@@ -225,7 +217,7 @@ bern_p <- nimbleFunction(
       alpha2_b[3] * pil
     
     # alpha1 - distance decay
-    logit_alpha1 <- (alpha1_b0 + alpha1_sd * alpha1_c) + 
+    logit_alpha1 <- alpha1_b0 + 
       
       alpha1_b[1] * sex + 
       alpha1_b[2] * ret + 
@@ -241,7 +233,7 @@ bern_p <- nimbleFunction(
       # lam0 - baseline hazard of detection [i, k, t]
       lam0[k] <- exp(
         
-        (lam0_b0 + lam0_sd * lam0_c) + 
+        lam0_b0 + 
           
           lam0_b[1] * sex + 
           lam0_b[2] * ret + 
@@ -330,16 +322,19 @@ model.code <- nimbleCode({
   # OPEN STATE-SPACE SUB-MODEL
   # ___________________________
   
+  # t1 -> t2 -> t3 -> t4
+  #   tr1   tr2   tr3
+  
   # demographic parameter priors
   # phi - persistence (logit scale)
   phi_b0 ~ dlogis(0, 1)
-  phi_sd ~ T(dt(0, sigma = 1, df = 1), 0, )    # SD - half-Cauchy
+  phi_sd ~ T(dt(0, sigma = 0.5, df = 1), 0, )    # SD - half-Cauchy
   
   # rho - per capita recruitment (log scale)
   rho_b0 ~ dunif(log(0.001), log(7))
-  rho_sd ~ T(dt(0, sigma = 1, df = 1), 0, )    # SD - half-Cauchy
+  rho_sd ~ T(dt(0, sigma = 0.5, df = 1), 0, )    # SD - half-Cauchy
   
-  # linear coefficients on open parameters (n = 7)
+  # linear coefficients on phi  (n = 9)
   # b1 - male effect
   # b2 - post1 effect
   # b3 - post2 effect
@@ -347,9 +342,25 @@ model.code <- nimbleCode({
   # b5 - ret x post2 effect
   # b6 - pil x post1 effect
   # b7 - pil x post2 effect
-  for (x in 1:7) {
+  # b8 - dm effect
+  # b9 - o effect
+  for (x in 1:9) {
     
     phi_b[x] ~ dlogis(0, 1)        # logistic prior to avoid logit woes
+    
+  }
+  
+  # linear coefficients on rho (n = 8)
+  # b1 - post1 effect
+  # b2 - post2 effect
+  # b3 - ret x post1 effect
+  # b4 - ret x post2 effect
+  # b5 - pil x post1 effect
+  # b6 - pil x post2 effect
+  # b7 - dm effect
+  # b8 - o effect
+  for (x in 1:8) {
+    
     rho_b[x] ~ dnorm(0, sd = 1)
     
   }
@@ -378,7 +389,9 @@ model.code <- nimbleCode({
           phi_b[4] * op.ret[i] * op.post1[i, t] +
           phi_b[5] * op.ret[i] * op.post2[i, t] +
           phi_b[6] * op.pil[i] * op.post1[i, t] +
-          phi_b[7] * op.pil[i] * op.post2[i, t]
+          phi_b[7] * op.pil[i] * op.post2[i, t] +
+          phi_b[8] * op.dm[i] +
+          phi_b[9] * op.o[i]
         
       )
       
@@ -387,13 +400,14 @@ model.code <- nimbleCode({
         
         (rho_b0 + rho_sd * rho_c[cluster[i]]) +
           
-          rho_b[1] * sex[i] +
-          rho_b[2] * op.post1[i, t] +
-          rho_b[3] * op.post2[i, t] +
-          rho_b[4] * op.ret[i] * op.post1[i, t] +
-          rho_b[5] * op.ret[i] * op.post2[i, t] +
-          rho_b[6] * op.pil[i] * op.post1[i, t] +
-          rho_b[7] * op.pil[i] * op.post2[i, t]
+          rho_b[1] * op.post1[i, t] +
+          rho_b[2] * op.post2[i, t] +
+          rho_b[3] * op.ret[i] * op.post1[i, t] +
+          rho_b[4] * op.ret[i] * op.post2[i, t] +
+          rho_b[5] * op.pil[i] * op.post1[i, t] +
+          rho_b[6] * op.pil[i] * op.post2[i, t] +
+          rho_b[7] * op.dm[i] +
+          rho_b[8] * op.o[i]
         
       )
       
@@ -470,14 +484,12 @@ model.code <- nimbleCode({
   # detection parameter priors
   # lam0 - baseline hazard detection (log scale)
   lam0_b0 ~ dnorm(0, sd = 1)  # mean 
-  lam0_sd ~ T(dt(0, sigma = 1, df = 1), 0, )    # SD - half-Cauchy
   
   # alpha2 - trap response
   alpha2_b0 ~ dnorm(0, sd = 1)  # mean 
   
   # alpha1 - distance decay 
   alpha1_b0 ~ dlogis(0, 1)     # mean
-  alpha1_sd ~ T(dt(0, sigma = 1, df = 1), 0, )   # SD - half-Cauchy
   
   # detection linear coefficients (n = 3)
   # b1 - male effect
@@ -488,14 +500,6 @@ model.code <- nimbleCode({
     lam0_b[x] ~ dnorm(0, sd = 1)  
     alpha2_b[x] ~ dnorm(0, sd = 1)  
     alpha1_b[x] ~ dlogis(0, 1)
-    
-  }
-  
-  # c - cluster-specific random scaling factors
-  for (c in 1:4) {
-    
-    lam0_c[c] ~ dnorm(0, sd = 1)
-    alpha1_c[c] ~ dnorm(0, sd = 1)
     
   }
   
@@ -524,8 +528,6 @@ model.code <- nimbleCode({
           
           # baseline hazard of detection
           lam0_b0 = lam0_b0,
-          lam0_sd = lam0_sd,
-          lam0_c = lam0_c[cluster[i]],
           lam0_b = lam0_b[1:3],
           
           # previous capture effect
@@ -534,8 +536,6 @@ model.code <- nimbleCode({
           
           # spatial scale of movement
           alpha1_b0 = alpha1_b0,
-          alpha1_sd = alpha1_sd,
-          alpha1_c = alpha1_c[cluster[i]],
           alpha1_b = alpha1_b[1:3],
           
           # constants
@@ -581,8 +581,6 @@ model.code <- nimbleCode({
         
         # baseline hazard of detection
         lam0_b0 = lam0_b0,
-        lam0_sd = lam0_sd,
-        lam0_c = lam0_c[cluster[i]],
         lam0_b = lam0_b[1:3],
         
         # previous capture effect
@@ -591,8 +589,6 @@ model.code <- nimbleCode({
         
         # spatial scale of movement
         alpha1_b0 = alpha1_b0,
-        alpha1_sd = alpha1_sd,
-        alpha1_c = alpha1_c[cluster[i]],
         alpha1_b = alpha1_b[1:3],
         
         # constants
@@ -646,12 +642,12 @@ inits <- list(
   # OPEN
   phi_b0 = rlogis(1, 0, 1),
   phi_sd = rexp(1, 1),
-  phi_b = rlogis(7, 0, 1), 
+  phi_b = rlogis(9, 0, 1), 
   
   # rho - per capita recruitment (log scale)
   rho_b0 = runif(1, log(0.001), log(7)),
   rho_sd = rexp(1, 1),
-  rho_b = rnorm(7, 0, sd = 1),
+  rho_b = rnorm(8, 0, sd = 1),
   
   # cluster-specific random scaling factors
   phi_c = rnorm(4, 0, sd = 1),
@@ -672,7 +668,6 @@ inits <- list(
   # detection
   # baseline hazard
   lam0_b0 = rnorm(1, 0, 1),
-  lam0_sd = rexp(1, 1),
   lam0_b = rnorm(3, 0, 1),
   
   # previous capture
@@ -681,12 +676,7 @@ inits <- list(
   
   # spatial scale
   alpha1_b0 = rnorm(1, 0, 1),
-  alpha1_sd = rexp(1, 1),
   alpha1_b = rnorm(3, 0, 1),
-  
-  # c - random effect scaling parameters (keep close to zero to start)
-  lam0_c = rnorm(4, 0, 0.25),
-  alpha1_c = rnorm(4, 0, 0.25),
   
   # latent covariates
   sex = ifelse(is.na(data.list$sex) == F, NA, 0)
@@ -697,24 +687,22 @@ inits <- list(
 # 5. Parameters to monitor ----
 # ______________________________________________________________________________
 
-# for PPC: z, sex, AC coordinates
-# can probably drop gamma, and psi after initial testing
-# N.all can be split, and we won't need the available after tuning the augmented guys
-
 monitor <- c(
   
   # open
   "phi_b0", "phi_sd", "phi_c", "phi_b", 
   "rho_b0", "rho_sd", "rho_c", "rho_b",
-  "psi", 
   
-  # detection
-  "lam0_b0", "lam0_sd", "lam0_c", "lam0_b", 
+  # closed
+  "lam0_b0", "lam0_b", 
   "alpha2_b0", "alpha2_b", 
-  "alpha1_b0", "alpha1_sd", "alpha1_c", "alpha1_b", 
+  "alpha1_b0", "alpha1_b", 
   
-  # states and counts
-  "N", "N.avail", "z"
+  # counts
+  "N", "sex",
+  
+  # s and z for PPCs
+  "s", "z"
   
 )
 
@@ -801,15 +789,17 @@ model.1.conf$addSampler(
 # remove samplers
 model.1.conf$removeSamplers(
   
-  c("lam0_b0", "lam0_sd", "lam0_c[1]", "lam0_c[2]", "lam0_c[3]", "lam0_c[4]",
-    "alpha1_b0", "alpha1_sd", "alpha1_c[1]", "alpha1_c[2]", "alpha1_c[3]", "alpha1_c[4]")
-  )
+  c("lam0_b0", "lam0_b[1]", 
+    "alpha2_b0", "alpha2_b[1]",
+    "alpha1_b0", "alpha1_b[1]")
+)
 
 # add samplers
 model.1.conf$addSampler(
   
-  c("lam0_b0", "lam0_sd", "lam0_c[1]", "lam0_c[2]", "lam0_c[3]", "lam0_c[4]",
-    "alpha1_b0", "alpha1_sd", "alpha1_c[1]", "alpha1_c[2]", "alpha1_c[3]", "alpha1_c[4]"), 
+  c("lam0_b0", "lam0_b[1]", 
+    "alpha2_b0", "alpha2_b[1]",
+    "alpha1_b0", "alpha1_b[1]"), 
   
   type = "RW_block",
   control = list(
@@ -838,9 +828,13 @@ mcmc.1.comp <- compileNimble(mcmc.1, project = model.1)
 model.1.run <- runMCMC(
   
   mcmc = mcmc.1.comp,
-  niter = 10000,
-  nburnin = 5000,
+  niter = 50000,          # yielding 1,500 samples per chain
+  nburnin = 20000,
+  thin = 20,
   nchains = 1,
   samplesAsCodaMCMC = TRUE
   
 )
+
+# save all samples
+saveRDS(model.1.run, paste0("samples_all_", chain, ".rds"))
