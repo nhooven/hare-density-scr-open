@@ -25,7 +25,7 @@ library(mefa4)
 params.2 <- readRDS("final_samples/samples_clean_2.rds")
 
 # ______________________________________________________________________________
-# 2. Parameter estimates ----
+# 3. Parameter estimates ----
 
 # these will be very similar to the hazard model coefficients
 
@@ -68,7 +68,7 @@ extract_med_ci <- function (x, ci.1 = 0.50, ci.2 = 0.90) {
 }
 
 # ______________________________________________________________________________
-# 2a. Process for phi ----
+# 3a. Process for phi ----
 # ______________________________________________________________________________
 
 # subset data
@@ -92,7 +92,7 @@ params.phi$name <- factor(params.phi$name)
 phi.summary$name <- factor(phi.summary$name)
 
 # ______________________________________________________________________________
-# 2b. Half-eye plots - phi ----
+# 3b. Half-eye plots - phi ----
 
 # subset to only coefficients
 unique(params.phi$name)
@@ -175,7 +175,7 @@ ggplot() +
 # 311 x 322
 
 # ______________________________________________________________________________
-# 2c. Process for rho ----
+# 3c. Process for rho ----
 # ______________________________________________________________________________
 
 # subset data
@@ -199,7 +199,7 @@ params.rho$name <- factor(params.rho$name)
 rho.summary$name <- factor(rho.summary$name)
 
 # ______________________________________________________________________________
-# 2d. Half-eye plots - rho ----
+# 3d. Half-eye plots - rho ----
 
 # subset to only coefficients
 rho.coefs.full <- params.rho %>% filter(name %in% unique(params.rho$name)[7:14])
@@ -280,9 +280,9 @@ ggplot() +
 # 311 x 286
 
 # ______________________________________________________________________________
-# 3. Predictions ----
+# 4. Predictions ----
 # ______________________________________________________________________________
-# 3a. Phi ----
+# 4a. Phi ----
 
 # inverse logit function
 inv_logit <- function (x) {
@@ -481,7 +481,7 @@ ggplot(data = phi.summ) +
 # 511 x 345
 
 # ______________________________________________________________________________
-# 3b. Rho ----
+# 4b. Rho ----
 # ______________________________________________________________________________
 
 # sex-year-trt predictions
@@ -619,9 +619,9 @@ ggplot(data = rho.summ) +
 # 523 x 230
 
 # ______________________________________________________________________________
-# 4. Cluster-specific random intercepts ----
+# 5. Cluster-specific random intercepts ----
 # ______________________________________________________________________________
-# 4a. Phi ----
+# 5a. Phi ----
 # ______________________________________________________________________________
 
 params.phi.clust <- params.2 |>
@@ -695,7 +695,7 @@ phi.RI <- ggplot() +
   scale_x_discrete(labels = c("Cluster 1", "Cluster 2", "Cluster 3", "Cluster 4"))
 
 # ______________________________________________________________________________
-# 4b. Rho ----
+# 5b. Rho ----
 # ______________________________________________________________________________
 
 params.rho.clust <- params.2 |>
@@ -772,7 +772,7 @@ cowplot::plot_grid(phi.RI, rho.RI)
 # 351 x 263
 
 # ______________________________________________________________________________
-# 5. Write tables ----
+# 6. Write tables ----
 # ______________________________________________________________________________
 
 write.table(phi.summary, "clipboard", sep = "\t")
