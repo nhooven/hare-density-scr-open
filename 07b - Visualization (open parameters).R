@@ -4,7 +4,7 @@
 # EMAIL: nathan.d.hooven@gmail.com
 # BEGAN: 28 Apr 2026
 # COMPLETED: 28 Apr 2026
-# LAST MODIFIED: 28 Apr 2026
+# LAST MODIFIED: 29 Apr 2026
 # R VERSION: 4.4.3
 
 # ______________________________________________________________________________
@@ -94,12 +94,61 @@ phi.summary$name <- factor(phi.summary$name)
 # ______________________________________________________________________________
 # 3b. Half-eye plots - phi ----
 
-# subset to only coefficients
+# which coefficients/groups?
 unique(params.phi$name)
 
-phi.coefs.full <- params.phi %>% filter(name %in% unique(params.phi$name)[7:15])
+phi.coefs.full <- params.phi %>%
+  
+  # subset to only coefficients
+  filter(name %in% unique(params.phi$name)[7:15]) %>%
+  
+  # grouping for colors
+  mutate(
+    
+    coef.group = factor(
+      
+      case_when(
+        
+        # treatment
+        name %in% unique(params.phi$name)[10:13] ~ "trt",
+        
+        # landscape
+        name %in% unique(params.phi$name)[14:15] ~ "ls",
+        
+        # other
+        TRUE ~ "default"
+        
+      )
+      
+    )
+    
+  )
 
-phi.coefs.summ <- phi.summary %>% filter(name %in% unique(params.phi$name)[7:15])
+phi.coefs.summ <- phi.summary %>% 
+  
+  filter(name %in% unique(params.phi$name)[7:15]) %>%
+  
+  # grouping for colors
+  mutate(
+    
+    coef.group = factor(
+      
+      case_when(
+        
+        # treatment
+        name %in% unique(params.phi$name)[10:13] ~ "trt",
+        
+        # landscape
+        name %in% unique(params.phi$name)[14:15] ~ "ls",
+        
+        # other
+        TRUE ~ "default"
+        
+      )
+      
+    )
+    
+  )
 
 # labels (must be reversed)
 phi.labels <- rev(c("Male", expression(tau[2]), expression(tau[3]), 
@@ -111,7 +160,7 @@ phi.labels <- rev(c("Male", expression(tau[2]), expression(tau[3]),
   
 # ______________________________________________________________________________
 
-ggplot() +
+phi.est <- ggplot() +
   
   theme_classic() +
   
@@ -126,7 +175,8 @@ ggplot() +
   # KDE
   geom_density_ridges(data = phi.coefs.full,
                       aes(x = value,
-                          y = name),
+                          y = name,
+                          fill = coef.group),
                       color = NA,
                       alpha = 0.5,
                       scale = 0.5,
@@ -136,7 +186,8 @@ ggplot() +
   geom_errorbar(data = phi.coefs.summ,
                  aes(xmin = lo.2,
                      xmax = up.2,
-                     y = name),
+                     y = name,
+                     color = coef.group),
                  alpha = 0.40,
                  height = 0,
                  linewidth = 1.35,
@@ -145,7 +196,8 @@ ggplot() +
   geom_errorbar(data = phi.coefs.summ,
                  aes(xmin = lo.1,
                      xmax = up.1,
-                     y = name),
+                     y = name,
+                     color = coef.group),
                  height = 0,
                  linewidth = 1.35,
                  position = position_nudge(y = -0.1)) +
@@ -157,8 +209,12 @@ ggplot() +
   scale_y_discrete(labels = phi.labels,
                    limits = rev) +
   
+  # colors
+  scale_color_manual(values = c("gray45", "olivedrab", "firebrick")) +
+  scale_fill_manual(values = c("gray45", "olivedrab", "firebrick")) +
+  
   # coordinates
-  coord_cartesian(xlim = c(-2.75, 2.75),
+  coord_cartesian(xlim = c(-2.5, 2.5),
                   ylim = c(1.3, 9)) +
   
   # remove gridlines, remove legend
@@ -170,7 +226,11 @@ ggplot() +
         axis.ticks.y = element_blank(),
         axis.title.y = element_blank(),
         strip.background = element_blank(),
-        plot.margin = margin(0.1, 0.1, 0.1, 0.83, unit = "cm"))
+        plot.margin = margin(t = 0.2, b = 0.2, l = 0.1, r = 0, unit = "cm"),
+        legend.position = "none") +
+  
+  # annotation
+  annotate("text", x = 2, y = 9, label = "a")
 
 # 311 x 322
 
@@ -201,10 +261,59 @@ rho.summary$name <- factor(rho.summary$name)
 # ______________________________________________________________________________
 # 3d. Half-eye plots - rho ----
 
-# subset to only coefficients
-rho.coefs.full <- params.rho %>% filter(name %in% unique(params.rho$name)[7:14])
+# prepare for plotting
+rho.coefs.full <- params.rho %>% 
+  
+  # subset to only coefficients
+  filter(name %in% unique(params.rho$name)[7:14]) %>%
+  
+  # group for colors
+  mutate(
+    
+    coef.group = factor(
+      
+      case_when(
+        
+        # treatment
+        name %in% unique(params.rho$name)[9:12] ~ "trt",
+        
+        # landscape
+        name %in% unique(params.rho$name)[13:14] ~ "ls",
+        
+        # other
+        TRUE ~ "default"
+        
+      )
+      
+    )
+    
+  )
 
-rho.coefs.summ <- rho.summary %>% filter(name %in% unique(params.rho$name)[7:14])
+rho.coefs.summ <- rho.summary %>% 
+  
+  filter(name %in% unique(params.rho$name)[7:14]) %>%
+  
+  # group for colors
+  mutate(
+    
+    coef.group = factor(
+      
+      case_when(
+        
+        # treatment
+        name %in% unique(params.rho$name)[9:12] ~ "trt",
+        
+        # landscape
+        name %in% unique(params.rho$name)[13:14] ~ "ls",
+        
+        # other
+        TRUE ~ "default"
+        
+      )
+      
+    )
+    
+  )
 
 # labels (must be reversed)
 rho.labels <- rev(c(expression(tau[2]), expression(tau[3]), 
@@ -216,7 +325,7 @@ rho.labels <- rev(c(expression(tau[2]), expression(tau[3]),
 
 # ______________________________________________________________________________
 
-ggplot() +
+rho.est <- ggplot() +
   
   theme_classic() +
   
@@ -231,7 +340,8 @@ ggplot() +
   # KDE
   geom_density_ridges(data = rho.coefs.full,
                       aes(x = value,
-                          y = name),
+                          y = name,
+                          fill = coef.group),
                       color = NA,
                       alpha = 0.5,
                       scale = 0.5,
@@ -241,7 +351,8 @@ ggplot() +
   geom_errorbar(data = rho.coefs.summ,
                 aes(xmin = lo.2,
                     xmax = up.2,
-                    y = name),
+                    y = name,
+                    color = coef.group),
                 alpha = 0.40,
                 height = 0,
                 linewidth = 1.35,
@@ -250,10 +361,15 @@ ggplot() +
   geom_errorbar(data = rho.coefs.summ,
                 aes(xmin = lo.1,
                     xmax = up.1,
-                    y = name),
+                    y = name,
+                    color = coef.group),
                 height = 0,
                 linewidth = 1.35,
                 position = position_nudge(y = -0.1)) +
+  
+  # colors
+  scale_color_manual(values = c("gray45", "olivedrab", "firebrick")) +
+  scale_fill_manual(values = c("gray45", "olivedrab", "firebrick")) +
   
   # x axis title
   xlab("Parameter estimate") +
@@ -263,7 +379,7 @@ ggplot() +
                    labels = rho.labels) +
   
   # coordinates
-  coord_cartesian(xlim = c(-2, 2),
+  coord_cartesian(xlim = c(-2.5, 2.5),
                   ylim = c(1.3, 8)) +
   
   # remove gridlines, remove legend
@@ -275,9 +391,23 @@ ggplot() +
         axis.ticks.y = element_blank(),
         axis.title.y = element_blank(),
         strip.background = element_blank(),
-        plot.margin = margin(0.1, 0.1, 0.1, 0.83, unit = "cm"))
+        plot.margin = margin(t = 1.17, b = 0.21, l = 0, r = 0.1, unit = "cm"),
+        legend.position = "none") +
+  
+  # annotation
+  annotate("text", x = 2, y = 8, label = "b")
 
 # 311 x 286
+
+# ______________________________________________________________________________
+# 3e. Plot together ----
+# ______________________________________________________________________________
+
+cowplot::plot_grid(phi.est, 
+                   rho.est, 
+                   nrow = 1)
+
+# 510 x 312
 
 # ______________________________________________________________________________
 # 4. Predictions ----
@@ -401,29 +531,29 @@ phi.summ <- data.frame(
   
   # identifiers
   period = c(1, 2, 3, 1, 2, 3, 2, 3, 2, 3, 2, 3, 2, 3),
-  trt = factor(c(rep("control", 6), rep("retention", 4), rep("piling", 4)),
-               levels = c("control", "retention", "piling")),
+  trt = factor(c(rep("unthinned", 6), rep("retention", 4), rep("piling", 4)),
+               levels = c("unthinned", "retention", "piling")),
   sex = factor(c("F", "F", "F", 
                  "M", "M", "M", 
                  "F", "F", "M", "M", 
-                 "F", "F", "M", "M"),
-               labels = c("Females", "Males")
+                 "F", "F", "M", "M")
                
   )
   
 )
 
 # prediction plot
-ggplot(data = phi.summ) +
+phi.pred.plot <- ggplot(data = phi.summ) +
   
   theme_bw() +
   
-  facet_grid(sex ~ trt) +
+  facet_grid(~ trt) +
   
   # connecting lines
   geom_line(aes(x = period,
                 y = med,
-                color = sex),
+                color = sex,
+                linetype = sex),
             linewidth = 0.8) +
   
   # CIs
@@ -434,29 +564,33 @@ ggplot(data = phi.summ) +
                     color = sex),
                 alpha = 0.45,
                 width = 0,
-                linewidth = 1.5,
-                position = position_dodge(width = 0.9)) +
+                linewidth = 1.5) +
   
   # points
   geom_point(aes(x = period,
                  y = med,
                  shape = sex,
-                 color = sex),
-             size = 2,
+                 color = sex,
+                 size = sex),
              fill = "white",
-             stroke = 0.8,
-             position = position_dodge(width = 0.9)) +
+             stroke = 0.8) +
   
   # scales
-  scale_shape_manual(values = c(21, 22)) +
+  scale_shape_manual(values = c(21, 23)) +
   
   # theme
   theme(panel.grid = element_blank(),
         axis.text = element_text(color = "black"),
-        legend.position = "none",
+        legend.position = c(0.85, 0.85),
         strip.text = element_text(hjust = 0),
         strip.background = element_rect(fill = "gray90",
-                                        linetype = "blank")) +
+                                        linetype = "blank"),
+        legend.title = element_blank(),
+        legend.background = element_rect(fill = NA),
+        legend.key = element_rect(fill = NA),
+        axis.title.x = element_blank(),
+        axis.text.x = element_blank(),
+        plot.margin = margin(0.1, 0.1, 0.02, 0.1, unit = "cm")) +
   
   # greek letters
   scale_x_continuous(
@@ -465,18 +599,21 @@ ggplot(data = phi.summ) +
     
     labels = c("1" = expression(tau[1]),
                "2" = expression(tau[2]),
-               "3" = expression(tau[3]))) +
+               "3" = expression(tau[3])),
+    
+    limits = c(0.75, 3.25)
+    
+    ) +
   
   scale_y_continuous(breaks = c(0.05, 0.15, 0.25, 0.35, 0.45)) +
   
+  # color and size
   scale_color_manual(values = c("#FF3300", "gray25")) +
-  
+  scale_size_manual(values = c(2, 1.8)) +
   
   # labels
   ylab("Persistence probability") +
   xlab("Transition period")
-  labs(color = NULL,
-       shape = NULL)
   
 # 511 x 345
 
@@ -559,13 +696,13 @@ rho.summ <- data.frame(
   
   # identifiers
   period = c(1, 2, 3, 2, 3, 2, 3),
-  trt = factor(c(rep("control", 3), rep("retention", 2), rep("piling", 2)),
-               levels = c("control", "retention", "piling"))
+  trt = factor(c(rep("unthinned", 3), rep("retention", 2), rep("piling", 2)),
+               levels = c("unthinned", "retention", "piling"))
   
 )
 
 # prediction plot
-ggplot(data = rho.summ) +
+rho.pred.plot <- ggplot(data = rho.summ) +
   
   theme_bw() +
   
@@ -599,9 +736,9 @@ ggplot(data = rho.summ) +
   theme(panel.grid = element_blank(),
         axis.text = element_text(color = "black"),
         legend.position = "none",
-        strip.text = element_text(hjust = 0),
-        strip.background = element_rect(fill = "gray90",
-                                        linetype = "blank")) +
+        strip.text = element_blank(),
+        strip.background = element_blank(),
+        plot.margin = margin(0.1, 0.1, 0.1, 0.27, unit = "cm")) +
   
   # greek letters
   scale_x_continuous(
@@ -610,13 +747,27 @@ ggplot(data = rho.summ) +
     
     labels = c("1" = expression(tau[1]),
                "2" = expression(tau[2]),
-               "3" = expression(tau[3]))) +
+               "3" = expression(tau[3])),
+    
+    limits = c(0.75, 3.25)
+    
+    ) +
   
   # labels
   ylab("Per capita recruitment") +
   xlab("Transition period")
   
 # 523 x 230
+
+# ______________________________________________________________________________
+# 4c. Plot together ----
+# ______________________________________________________________________________
+
+cowplot::plot_grid(phi.pred.plot, 
+                   rho.pred.plot, 
+                   nrow = 2)
+
+# 397 x 447
 
 # ______________________________________________________________________________
 # 5. Cluster-specific random intercepts ----
