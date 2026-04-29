@@ -3,8 +3,8 @@
 # AUTHOR: Nate Hooven
 # EMAIL: nathan.d.hooven@gmail.com
 # BEGAN: 28 Apr 2026
-# COMPLETED: 
-# LAST MODIFIED: 
+# COMPLETED: 29 Apr 2026
+# LAST MODIFIED: 29 Apr 2026
 # R VERSION: 4.4.3
 
 # ______________________________________________________________________________
@@ -334,22 +334,287 @@ predict_dfn(x.lam, test.y)
 
 # ______________________________________________________________________________
 # 5b. Predict ----
+
+dist.seq <- seq(0, 200, length.out = 500)
+
 # ______________________________________________________________________________
-
-# data.frames to predict on
-all.df 
-
 
 all.preds <- rbind(
   
-  test.y <- data.frame(
+  # F, control, first cap
+  predict_dfn(
     
-    d = seq(0, 500, length.out = 100),
-    sex = 0,
-    ret = 0,
-    pil = 0,
-    prev.cap = 1
+    x.lam,
+    
+    data.frame(
+      
+      d = dist.seq,
+      sex = 0,
+      ret = 0,
+      pil = 0,
+      prev.cap = 0
+      
+    )
+    
+  ),
+  
+  # F, control, recap
+  predict_dfn(
+    
+    x.lam,
+    
+    data.frame(
+      
+      d = dist.seq,
+      sex = 0,
+      ret = 0,
+      pil = 0,
+      prev.cap = 1
+      
+    )
+    
+  ),
+  
+  # F, ret, first cap,
+  predict_dfn(
+    
+    x.lam,
+    
+    data.frame(
+      
+      d = dist.seq,
+      sex = 0,
+      ret = 1,
+      pil = 0,
+      prev.cap = 0
+      
+    )
+    
+  ),
+  
+  # F, ret, recap
+  predict_dfn(
+    
+    x.lam,
+    
+    data.frame(
+      
+      d = dist.seq,
+      sex = 0,
+      ret = 1,
+      pil = 0,
+      prev.cap = 1
+      
+    )
+    
+  ),
+  
+  # F, pil, first cap
+  predict_dfn(
+    
+    x.lam,
+    
+    data.frame(
+      
+      d = dist.seq,
+      sex = 0,
+      ret = 0,
+      pil = 1,
+      prev.cap = 0
+      
+    )
+    
+  ),
+  
+  # F, pil, recap
+  predict_dfn(
+    
+    x.lam,
+    
+    data.frame(
+      
+      d = dist.seq,
+      sex = 0,
+      ret = 0,
+      pil = 1,
+      prev.cap = 1
+      
+    )
+    
+  ),
+  
+  # M, control, first cap
+  predict_dfn(
+    
+    x.lam,
+    
+    data.frame(
+      
+      d = dist.seq,
+      sex = 1,
+      ret = 0,
+      pil = 0,
+      prev.cap = 0
+      
+    )
+    
+  ),
+  
+  # M, control, recap
+  predict_dfn(
+    
+    x.lam,
+    
+    data.frame(
+      
+      d = dist.seq,
+      sex = 1,
+      ret = 0,
+      pil = 0,
+      prev.cap = 1
+      
+    )
+    
+  ),
+  
+  # M, ret, first cap,
+  predict_dfn(
+    
+    x.lam,
+    
+    data.frame(
+      
+      d = dist.seq,
+      sex = 1,
+      ret = 1,
+      pil = 0,
+      prev.cap = 0
+      
+    )
+    
+  ),
+  
+  # M, ret, recap
+  predict_dfn(
+    
+    x.lam,
+    
+    data.frame(
+      
+      d = dist.seq,
+      sex = 1,
+      ret = 1,
+      pil = 0,
+      prev.cap = 1
+      
+    )
+    
+  ),
+  
+  # M, pil, first cap
+  predict_dfn(
+    
+    x.lam,
+    
+    data.frame(
+      
+      d = dist.seq,
+      sex = 1,
+      ret = 0,
+      pil = 1,
+      prev.cap = 0
+      
+    )
+    
+  ),
+  
+  # M, pil, recap
+  predict_dfn(
+    
+    x.lam,
+    
+    data.frame(
+      
+      d = dist.seq,
+      sex = 1,
+      ret = 0,
+      pil = 1,
+      prev.cap = 1
+      
+    )
     
   )
   
 )
+
+# prepare for plotting
+all.preds.forPlot <- all.preds %>%
+  
+  # factors for splitting
+  mutate(
+    
+    sex = factor(
+      
+      ifelse(sex == 0, "F", "M")
+      
+    ),
+    
+    trt = case_when(
+      
+      ret == 0 & pil == 0 ~ "control",
+      ret == 1 & pil == 0 ~ "retention",
+      ret == 0 & pil == 1 ~ "piling"
+      
+    ),
+    
+    prev.cap = factor(
+      
+      ifelse(prev.cap == 0, "N", "Y")
+      
+    )
+    
+  )
+
+# ______________________________________________________________________________
+# 5c. Plot ----
+# ______________________________________________________________________________
+
+ggplot(data = all.preds.forPlot) +
+  
+  theme_bw() +
+  
+  facet_grid(sex ~ trt) +
+  
+  # 90% CIs
+  geom_ribbon(aes(x = d,
+                  y = pred.med,
+                  ymin = pred.l90,
+                  ymax = pred.u90,
+                  fill = prev.cap),
+              alpha = 0.3) +
+  
+  # median
+  geom_line(aes(x = d,
+                y = pred.med,
+                color = prev.cap),
+            linewidth = 0.75) +
+  
+  theme(panel.grid = element_blank(),
+        axis.text = element_text(color = "black"),
+        strip.text = element_text(hjust = 0),
+        strip.background = element_rect(fill = "gray90",
+                                        linetype = "blank"),
+        legend.position = c(0.87, 0.8)) +
+  
+  # axis labels
+  xlab("Distance (m)") +
+  ylab("Detection hazard rate") +
+  
+  labs(color = "Recapture",
+       fill = "Recapture") +
+  
+  # colors and fill
+  scale_color_manual(values = c("gray35", "purple")) +
+  scale_fill_manual(values = c("gray35", "purple"))
+
+# 512 x 354
