@@ -225,6 +225,7 @@ phi.est <- ggplot() +
         axis.text = element_text(color = "black"),
         axis.ticks.y = element_blank(),
         axis.title.y = element_blank(),
+        axis.title.x = element_text(size = 8),
         strip.background = element_blank(),
         plot.margin = margin(t = 0.2, b = 0.2, l = 0.1, r = 0, unit = "cm"),
         legend.position = "none") +
@@ -390,6 +391,7 @@ rho.est <- ggplot() +
         axis.text = element_text(color = "black"),
         axis.ticks.y = element_blank(),
         axis.title.y = element_blank(),
+        axis.title.x = element_text(size = 8),
         strip.background = element_blank(),
         plot.margin = margin(t = 1.17, b = 0.21, l = 0, r = 0.1, unit = "cm"),
         legend.position = "none") +
