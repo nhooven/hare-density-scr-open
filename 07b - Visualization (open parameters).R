@@ -156,7 +156,7 @@ phi.labels <- rev(c("Male", expression(tau[2]), expression(tau[3]),
                     expression("RET x " * tau[3]),
                     expression("PIL x " * tau[2]),
                     expression("PIL x " * tau[3]),
-                    "DM", "O"))
+                    "DM", "OPEN"))
   
 # ______________________________________________________________________________
 
@@ -321,7 +321,7 @@ rho.labels <- rev(c(expression(tau[2]), expression(tau[3]),
                     expression("RET x " * tau[3]),
                     expression("PIL x " * tau[2]),
                     expression("PIL x " * tau[3]),
-                    "DM", "O"))
+                    "DM", "OPEN"))
 
 # ______________________________________________________________________________
 
