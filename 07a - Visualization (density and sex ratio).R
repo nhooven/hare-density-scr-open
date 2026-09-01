@@ -4,7 +4,7 @@
 # EMAIL: nathan.d.hooven@gmail.com
 # BEGAN: 27 Apr 2026
 # COMPLETED: 27 Apr 2026
-# LAST MODIFIED: 28 Apr 2026
+# LAST MODIFIED: 01 Sep 2026
 # R VERSION: 4.4.3
 
 # ______________________________________________________________________________
@@ -294,6 +294,12 @@ ggplot(data = plot.df.D) +
   scale_color_manual(values = c("#003300", "#669900"))
 
 # 493 x 403
+ggsave("final_plots/Figure_3.pdf",
+       device = "pdf",
+       width = 515,
+       height = 403,
+       scale = 3.5,
+       units = "px")
 
 #_______________________________________________________________________________
 # 5b. Sex-specific density ----

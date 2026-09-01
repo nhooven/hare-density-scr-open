@@ -4,7 +4,7 @@
 # EMAIL: nathan.d.hooven@gmail.com
 # BEGAN: 28 Apr 2026
 # COMPLETED: 28 Apr 2026
-# LAST MODIFIED: 29 Apr 2026
+# LAST MODIFIED: 01 Sep 2026
 # R VERSION: 4.4.3
 
 # ______________________________________________________________________________
@@ -410,6 +410,12 @@ cowplot::plot_grid(phi.est,
                    nrow = 1)
 
 # 510 x 312
+ggsave("final_plots/Figure_4.pdf",
+       device = "pdf",
+       width = 311,
+       height = 286,
+       scale = 4.5,
+       units = "px")
 
 # ______________________________________________________________________________
 # 4. Predictions ----
@@ -770,6 +776,12 @@ cowplot::plot_grid(phi.pred.plot,
                    nrow = 2)
 
 # 397 x 447
+ggsave("final_plots/Figure_5.pdf",
+       device = "pdf",
+       width = 397,
+       height = 447,
+       scale = 3.5,
+       units = "px")
 
 # ______________________________________________________________________________
 # 5. Cluster-specific random intercepts ----
