@@ -418,13 +418,14 @@ model.code <- nimbleCode({
   # gamma - probability of entry
   # conditional on how many individuals were in states 2 and 1 in t - 1
   # calculate by individual-year
+  # from review: the logit function here ruins rho's independence from the augmentation
+  # one possible issue is that gamma could be > 1 - we'll have to watch out
   for (i in 1:M) {
     
     for (t in (first.year[site[i]] + 1):YR) {
       
-      logit(gamma[i, t - 1]) <- log(N[site[i], t - 1] + 1e-6) +
-                                log(rho[i, t - 1]) -
-                                log(N.avail[site[i], t - 1] + 1e-6)
+      gamma[i, t - 1] <- (N[site[i], t - 1] * rho[i, t - 1]) /
+                          N.avail[site[i], t - 1]
       
     } # YR
     
