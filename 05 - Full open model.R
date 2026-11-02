@@ -4,7 +4,7 @@
 # EMAIL: nathan.d.hooven@gmail.com
 # BEGAN: 06 Feb 2026
 # COMPLETED: 
-# LAST MODIFIED: 13 Apr 2026
+# LAST MODIFIED: 02 Nov 2026
 # R VERSION: 4.4.3
 
 # ______________________________________________________________________________
@@ -17,9 +17,14 @@ library(nimble)
 # 2. Read in data ----
 # ______________________________________________________________________________
 
-constant.list <- readRDS("constants.rds")
-data.list <- readRDS("data.rds")
-state.inits <- readRDS("state_inits.rds")
+constant.list <- readRDS("for_model/constants.rds")
+data.list <- readRDS("for_model/data.rds")
+state.inits <- readRDS("for_model/state_inits.rds")
+
+# add constraint into data [i ,t]
+data.list$gam.constr <- matrix(data = 1,
+                               nrow = nrow(data.list$z),
+                               ncol = ncol(data.list$z))
 
 # which state inits? 
 chain = 1
@@ -427,6 +432,9 @@ model.code <- nimbleCode({
       gamma[i, t - 1] <- (N[site[i], t - 1] * rho[i, t - 1]) /
                           N.avail[site[i], t - 1]
       
+      # constraint
+      gam.constr[i, t - 1] ~ dconstraint(gamma[i, t - 1] < 1)
+      
     } # YR
     
   } # M
@@ -646,7 +654,7 @@ inits <- list(
   phi_b = rlogis(9, 0, 1), 
   
   # rho - per capita recruitment (log scale)
-  rho_b0 = runif(1, log(0.001), log(7)),
+  rho_b0 = runif(1, log(0.001), log(2)),    # smaller than prior
   rho_sd = rexp(1, 1),
   rho_b = rnorm(8, 0, sd = 1),
   
