@@ -4,7 +4,7 @@
 # EMAIL: nathan.d.hooven@gmail.com
 # BEGAN: 06 Feb 2026
 # COMPLETED: 
-# LAST MODIFIED: 03 Nov 2026
+# LAST MODIFIED: 04 Nov 2026
 # R VERSION: 4.5.2
 
 # here, we will calculate site-year specific rho estimates instead of the original
@@ -680,7 +680,7 @@ inits <- list(
 monitor <- c(
   
   # open
-  "phi_b0", "phi_sd", "phi_u_sd", "phi_c", "phi_u", "phi_b", 
+  "phi_b0", "phi_sd", "phi_u_sd", "phi_u_z", "phi_c", "phi_b", 
   "rho",
   
   # closed
@@ -737,14 +737,14 @@ model.1.conf <- configureMCMC(model.1, monitors = monitor)
 # remove samplers
 model.1.conf$removeSamplers(
   
-  c("phi_b0", "phi_sd", "phi_c[1]", "phi_c[2]", "phi_c[3]", "phi_c[4]")
+  c("phi_b0", "phi_sd", "phi_c_z[1]", "phi_c_z[2]", "phi_c_z[3]", "phi_c_z[4]")
 )
 
 # add samplers
 # phi
 model.1.conf$addSampler(
   
-  c("phi_b0", "phi_sd", "phi_c[1]", "phi_c[2]", "phi_c[3]", "phi_c[4]"), 
+  c("phi_b0", "phi_sd", "phi_c_z[1]", "phi_c_z[2]", "phi_c_z[3]", "phi_c_z[4]"), 
   
   type = "RW_block",
   control = list(
