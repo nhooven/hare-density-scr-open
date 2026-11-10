@@ -665,7 +665,7 @@ ggsave("final_plots/Figure_realized_rho.pdf",
        units = "px")
 
 # ______________________________________________________________________________
-# 5. Cluster-specific random intercepts ----
+# 5. Random intercepts ----
 # ______________________________________________________________________________
 # 5a. Phi ----
 # ______________________________________________________________________________
@@ -676,24 +676,36 @@ params.phi.clust <- params.2 |>
   do.call(rbind, args = _) |>
   
   # subset
-  subset(select = 1:6) |>
+  subset(select = 1:19) |>
   
   as.data.frame() %>%
   
   mutate(
     
-    int1 = inv_logit(phi_b0 + phi_sd * `phi_c[1]`),
-    int2 = inv_logit(phi_b0 + phi_sd * `phi_c[2]`),
-    int3 = inv_logit(phi_b0 + phi_sd * `phi_c[3]`),
-    int4 = inv_logit(phi_b0 + phi_sd * `phi_c[4]`)
+    c1 = inv_logit(`phi_c[1]`),
+    c2 = inv_logit(`phi_c[2]`),
+    c3 = inv_logit(`phi_c[3]`),
+    c4 = inv_logit(`phi_c[4]`),
+    u1 = inv_logit(`phi_c[1]` + `phi_u_sd` * `phi_u_z[1]`),
+    u2 = inv_logit(`phi_c[1]` + `phi_u_sd` * `phi_u_z[2]`),
+    u3 = inv_logit(`phi_c[1]` + `phi_u_sd` * `phi_u_z[3]`),
+    u4 = inv_logit(`phi_c[2]` + `phi_u_sd` * `phi_u_z[4]`),
+    u5 = inv_logit(`phi_c[2]` + `phi_u_sd` * `phi_u_z[5]`),
+    u6 = inv_logit(`phi_c[2]` + `phi_u_sd` * `phi_u_z[6]`),
+    u7 = inv_logit(`phi_c[3]` + `phi_u_sd` * `phi_u_z[7]`),
+    u8 = inv_logit(`phi_c[3]` + `phi_u_sd` * `phi_u_z[8]`),
+    u9 = inv_logit(`phi_c[3]` + `phi_u_sd` * `phi_u_z[9]`),
+    u10 = inv_logit(`phi_c[4]` + `phi_u_sd` * `phi_u_z[10]`),
+    u11 = inv_logit(`phi_c[4]` + `phi_u_sd` * `phi_u_z[11]`),
+    u12 = inv_logit(`phi_c[4]` + `phi_u_sd` * `phi_u_z[12]`)
     
   ) %>%
   
   # keep intercept columns
-  dplyr::select(int1:int4) %>%
+  dplyr::select(c1:u12) %>%
   
   # summarize
-  pivot_longer(cols = int1:int4) %>%
+  pivot_longer(cols = c1:u12) %>%
   
   group_by(name) %>%
   
@@ -706,39 +718,71 @@ params.phi.clust <- params.2 |>
     lo.2 = as.numeric(hdi(value, ci = 0.9)[2]),
     up.2 = as.numeric(hdi(value, ci = 0.9)[3])
     
+  ) |>
+  
+  # add ID columns for plotting
+  mutate(cluster = case_when(
+    
+    name %in% c("c1", "u1", "u2", "u3") ~ "cluster 1",
+    name %in% c("c2", "u4", "u5", "u6") ~ "cluster 2",
+    name %in% c("c3", "u7", "u8", "u9") ~ "cluster 3",
+    name %in% c("c4", "u10", "u11", "u12") ~ "cluster 4"),
+    
+    level = case_when(
+      
+      name %in% c("c1", "c2", "c3", "c4") ~ "cluster",
+      TRUE ~ "site"
+      
+    )
   )
 
 # random intercept plot
-ggplot() +
+ggplot(data = params.phi.clust) +
   
-  theme_classic() +
+  theme_bw() +
   
-  # 95%
-  geom_errorbar(data = params.phi.clust,
-                aes(x = name,
+  facet_wrap(~ cluster, 
+             scales = "free_x",
+             nrow = 1) +
+  
+  # 90%
+  geom_errorbar(aes(x = name,
                     ymin = lo.2,
-                    ymax = up.2),
+                    ymax = up.2,
+                    color = level),
                 alpha = 0.4,
                 width = 0,
                 linewidth = 1.75) +
   
   # 50% CI
-  geom_errorbar(data = params.phi.clust,
-                aes(x = name,
+  geom_errorbar(aes(x = name,
                     ymin = lo.1,
-                    ymax = up.1),
+                    ymax = up.1,
+                    color = level),
                 width = 0,
                 linewidth = 1.75) +
   
-  theme(axis.title.x = element_blank(),
-        axis.text.x = element_text(angle = 270,
-                                   vjust = 0.5)) +
+  # median
+  geom_point(aes(x = name,
+                 y = med,
+                 color = level),
+             shape = 21,
+             fill = "white",
+             size = 2,
+             stroke = 0.8) +
+  
+  theme(panel.grid = element_blank(),
+        strip.background = element_rect(color = NA),
+        strip.text = element_text(hjust = 0),
+        axis.title.x = element_blank(),
+        axis.text = element_text(color = "black"),
+        legend.position = "none") +
+  
+  scale_color_manual(values = c("black", "gray55")) +
 
-  ylab("Persistence probability") +
-  
-  scale_y_continuous(breaks = c(0.25, 0.35, 0.45, 0.55)) +
-  
-  scale_x_discrete(labels = c("Cluster 1", "Cluster 2", "Cluster 3", "Cluster 4"))
+  ylab(expression(phi))
+
+# 591 x 192
 
 # ______________________________________________________________________________
 # 6. Write tables ----
