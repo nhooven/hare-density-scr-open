@@ -4,8 +4,8 @@
 # EMAIL: nathan.d.hooven@gmail.com
 # BEGAN: 27 Apr 2026
 # COMPLETED: 27 Apr 2026
-# LAST MODIFIED: 01 Sep 2026
-# R VERSION: 4.4.3
+# LAST MODIFIED: 09 Nov 2026
+# R VERSION: 4.5.2
 
 # ______________________________________________________________________________
 # 1. Load packages ----
@@ -284,7 +284,7 @@ ggplot(data = plot.df.D) +
   coord_cartesian(xlim = c(0.75, 4.25)) +
   
   # y axis
-  scale_y_continuous(breaks = c(0.5, 1.5, 2.5)) +
+  scale_y_continuous(breaks = c(0.5, 1.5, 2.5, 3.5)) +
   
   # x labels
   scale_x_continuous(breaks = seq(1, 4, 1),

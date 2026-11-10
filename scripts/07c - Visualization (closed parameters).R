@@ -4,8 +4,8 @@
 # EMAIL: nathan.d.hooven@gmail.com
 # BEGAN: 28 Apr 2026
 # COMPLETED: 29 Apr 2026
-# LAST MODIFIED: 29 Apr 2026
-# R VERSION: 4.4.3
+# LAST MODIFIED: 09 Nov 2026
+# R VERSION: 4.5.2
 
 # ______________________________________________________________________________
 # 1. Load packages ----
@@ -573,7 +573,11 @@ all.preds.forPlot <- all.preds %>%
       
     )
     
-  )
+  ) |>
+  
+  mutate(trt = factor(trt, 
+                      levels = c("control", "retention", "piling"),
+                      labels = c("unthinned", "retention", "piling")))
 
 # ______________________________________________________________________________
 # 5c. Plot ----

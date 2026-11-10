@@ -4,8 +4,8 @@
 # EMAIL: nathan.d.hooven@gmail.com
 # BEGAN: 27 Apr 2026
 # COMPLETED: 27 Apr 2026
-# LAST MODIFIED: 27 Apr 2026
-# R VERSION: 4.4.3
+# LAST MODIFIED: 09 Nov 2026
+# R VERSION: 4.5.2
 
 # ______________________________________________________________________________
 # 1. Load packages ----
@@ -52,7 +52,9 @@ colnames(params.2[[1]])
 MCMCsummary(params.2, params = colnames(params.2[[1]])[1:15], ISB = F, HPD = T, hpd_prob = 0.90)
 
 # rho
-MCMCsummary(params.2, params = colnames(params.2[[1]])[16:29], ISB = F, HPD = T, hpd_prob = 0.90)
+real.rho <- c(17, 18, 20, 23:36, 44:45, 47:48, 50, 51)
+
+MCMCsummary(params.2, params = colnames(params.2[[1]])[real.rho], ISB = F, HPD = T, hpd_prob = 0.90)
 
 #_______________________________________________________________________________
 # 3c. Closed parameters ----
@@ -84,9 +86,6 @@ MCMCtrace(params.1, params = colnames(params.1[[1]])[1:48], ISB = F, pdf = F)
 
 # phi
 MCMCtrace(params.2, params = colnames(params.2[[1]])[1:15], ISB = F, pdf = F)
-
-# rho
-MCMCtrace(params.2, params = colnames(params.2[[1]])[16:29], ISB = F, pdf = F)
 
 #_______________________________________________________________________________
 # 4c. Closed parameters ----
