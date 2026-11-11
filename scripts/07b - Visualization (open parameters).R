@@ -4,7 +4,7 @@
 # EMAIL: nathan.d.hooven@gmail.com
 # BEGAN: 28 Apr 2026
 # COMPLETED: 28 Apr 2026
-# LAST MODIFIED: 10 Nov 2026
+# LAST MODIFIED: 11 Nov 2026
 # R VERSION: 4.5.2
 
 # ______________________________________________________________________________
@@ -88,7 +88,6 @@ phi.summary <- extract_med_ci(params.phi)
 # prepare for plotting
 # factors
 params.phi$name <- factor(params.phi$name)
-
 phi.summary$name <- factor(phi.summary$name)
 
 # ______________________________________________________________________________
@@ -100,7 +99,7 @@ unique(params.phi$name)
 phi.coefs.full <- params.phi %>%
   
   # subset to only coefficients
-  filter(name %in% unique(params.phi$name)[7:15]) %>%
+  filter(name %in% unique(params.phi$name)[20:28]) %>%
   
   # grouping for colors
   mutate(
@@ -110,7 +109,7 @@ phi.coefs.full <- params.phi %>%
       case_when(
         
         # treatment
-        name %in% unique(params.phi$name)[10:13] ~ "trt",
+        name %in% unique(params.phi$name)[23:26] ~ "trt",
         
         # other
         TRUE ~ "default"
@@ -123,7 +122,7 @@ phi.coefs.full <- params.phi %>%
 
 phi.coefs.summ <- phi.summary %>% 
   
-  filter(name %in% unique(params.phi$name)[7:15]) %>%
+  filter(name %in% unique(params.phi$name)[20:28]) %>%
   
   # grouping for colors
   mutate(
@@ -133,7 +132,7 @@ phi.coefs.summ <- phi.summary %>%
       case_when(
         
         # treatment
-        name %in% unique(params.phi$name)[10:13] ~ "trt",
+        name %in% unique(params.phi$name)[23:26] ~ "trt",
         
         # other
         TRUE ~ "default"
@@ -357,7 +356,7 @@ phi.summ <- data.frame(
 )
 
 # prediction plot
-plot.phi <- ggplot(data = phi.summ) +
+ggplot(data = phi.summ) +
   
   theme_bw() +
   
@@ -428,19 +427,14 @@ plot.phi <- ggplot(data = phi.summ) +
   xlab("Transition period")
   
 # 408 x 251
-ggsave("final_plots/Figure_phi_pred.pdf",
-       device = "pdf",
-       width = 408,
-       height = 251,
-       scale = 3.5,
-       units = "px")
+# we'll probably not use this one standalone
 
 # ______________________________________________________________________________
 # 4b. Rho ----
 # ______________________________________________________________________________
 
 # which ones?
-real.rho <- c(17, 18, 20, 21, 23:36, 38:42, 44:45, 47:48, 50, 51)
+real.rho <- c(30, 31, 33, 34, 36:49, 51:55, 57, 58, 60, 61, 63, 64)
 
 # subset data
 params.rho <- params.2 |>
@@ -529,68 +523,6 @@ rho.summary.1 <- bind_rows(rho.summary, trt.tau.sum) |>
                         "clusters"))
 
 # plot
-ggplot() +
-  
-  theme_bw() +
-  
-  facet_wrap(~ trt) +
-  
-  # individual sites
-  geom_errorbar(data = rho.summary.1,
-                aes(x = tau,
-                    y = med, 
-                    group = name,
-                    ymin = lo.2,
-                    ymax = up.2,
-                    color = cluster),
-                position = position_dodge(width = 0.5),
-                width = 0,
-                alpha = 0.45,
-                linewidth = 1.5) +
-  
-  geom_point(data = rho.summary.1,
-             aes(x = tau,
-                 y = med, 
-                 group = name,
-                 shape = cluster,
-                 fill = cluster),
-             position = position_dodge(width = 0.5)) +
-  
-  # theme
-  theme(panel.grid = element_blank(),
-        axis.text = element_text(color = "black"),
-        legend.position = c(0.85, 0.85),
-        strip.text = element_text(hjust = 0),
-        strip.background = element_rect(fill = "gray90",
-                                        linetype = "blank"),
-        legend.title = element_blank(),
-        legend.background = element_rect(fill = NA),
-        legend.key = element_rect(fill = NA),
-        plot.margin = margin(0.1, 0.1, 0.02, 0.1, unit = "cm")) +
-  
-  # greek letters
-  scale_x_continuous(
-    
-    breaks = 1:3,
-    
-    labels = c("1" = expression(tau[1]),
-               "2" = expression(tau[2]),
-               "3" = expression(tau[3])),
-    
-    limits = c(0.75, 3.25)
-    
-  ) +
-  
-  # manual colors and shapes
-  scale_color_manual(values = c("gray", "darkgreen", "lightgreen", "gold", "darkorange")) +
-  scale_fill_manual(values = c("gray", "darkgreen", "lightgreen", "gold", "darkorange")) +
-  scale_shape_manual(values = c(21, 21, 22, 23, 24)) +
-  
-  # labels
-  ylab("Per capita recruitment") +
-  xlab("Transition period")
-
-# I don't like this one. Let's make one similar to the density one
 ggplot(data = rho.summary.1) +
   
   theme_bw() +
@@ -657,12 +589,7 @@ ggplot(data = rho.summary.1) +
   xlab("Transition period")
 
 # 598 x 385
-ggsave("final_plots/Figure_realized_rho.pdf",
-       device = "pdf",
-       width = 598,
-       height = 385,
-       scale = 3.5,
-       units = "px")
+# supplement? or not?
 
 # ______________________________________________________________________________
 # 5. Random intercepts ----
@@ -1252,7 +1179,7 @@ plot.rho <- ggplot(data = rho.summ) +
 # 8d. Plot all ----
 # ______________________________________________________________________________
 
-plot_grid(plot.deltaD, plot.phi, plot.rho,
+cowplot::plot_grid(plot.deltaD, plot.phi, plot.rho,
           nrow = 3,
           rel_heights = c(1.0, 0.8, 1.05))
 
@@ -1523,3 +1450,126 @@ ggplot(data = scaled.all) +
   ylab("Standardized estimate")
 
 # 506 x 456
+
+# ______________________________________________________________________________
+# 12. Scatter plots of tau parameters ----
+
+# which one is more closely related to density change? obviously rho
+
+# ______________________________________________________________________________
+# 12a. Process ----
+# ______________________________________________________________________________
+
+df.for.scat <- rho.summary |>
+  
+  dplyr::select(site, tau, med, lo.2, up.2) |>
+  rename(med.rho = med,
+         l90.rho = lo.2,
+         u90.rho = up.2) |>
+  
+  left_join(
+    
+    all.deltaD |>
+      
+      left_join(site.lookup |> dplyr::select(SiteName, siteID) |> rename(site = SiteName)) |>
+      dplyr::select(siteID, tau, perc.deltaD.med, perc.deltaD.l90, perc.deltaD.u90) |>
+      rename(site = siteID,
+             med.D = perc.deltaD.med,
+             l90.D = perc.deltaD.l90,
+             u90.D = perc.deltaD.u90)
+    
+  ) |>
+  
+  left_join(
+    
+    phi.pred.site |>
+      
+      rename(med.phi = med,
+             l90.phi = l90,
+             u90.phi = u90)
+    
+  )
+
+# ______________________________________________________________________________
+
+scat.plot.phi <- ggplot(data = df.for.scat) +
+  
+  theme_classic() +
+  
+  # error bars
+  # x
+  geom_errorbar(aes(x = med.phi,
+                    xmin = l90.phi,
+                    xmax = u90.phi,
+                    y = med.D),
+                linewidth = 0.75,
+                width = 0,
+                alpha = 0.25) +
+  
+  # y
+  geom_errorbar(aes(x = med.phi,
+                    y = med.D,
+                    ymin = l90.D,
+                    ymax = u90.D),
+                linewidth = 0.75,
+                width = 0,
+                alpha = 0.25) +
+  
+  # median points
+  geom_point(aes(x = med.phi,
+                 y = med.D),
+             shape = 21,
+             stroke = 0.8,
+             fill = "white",
+             size = 1.1) +
+  
+  # labels
+  xlab(expression(phi)) +
+  ylab(expression("% "*Delta*"D"))
+
+scat.plot.phi
+
+scat.plot.rho <- ggplot(data = df.for.scat) +
+  
+  theme_classic() +
+  
+  # error bars
+  # x
+  geom_errorbar(aes(x = med.rho,
+                    xmin = l90.rho,
+                    xmax = u90.rho,
+                    y = med.D),
+                linewidth = 0.75,
+                width = 0,
+                alpha = 0.25) +
+  
+  # y
+  geom_errorbar(aes(x = med.rho,
+                    y = med.D,
+                    ymin = l90.D,
+                    ymax = u90.D),
+                linewidth = 0.75,
+                width = 0,
+                alpha = 0.25) +
+  
+  # median points
+  geom_point(aes(x = med.rho,
+                 y = med.D),
+             shape = 21,
+             stroke = 0.8,
+             fill = "white",
+             size = 1.1) +
+  
+  # labels
+  xlab(expression(rho)) +
+  
+  theme(axis.title.y = element_blank(),
+        axis.text.y = element_blank())
+
+scat.plot.rho
+
+# plot together
+cowplot::plot_grid(scat.plot.phi, scat.plot.rho,
+                   rel_widths = c(1.0, 0.86))
+
+# 516 x 275
