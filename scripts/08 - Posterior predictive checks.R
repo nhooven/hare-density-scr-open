@@ -4,8 +4,8 @@
 # EMAIL: nathan.d.hooven@gmail.com
 # BEGAN: 04 May 2026
 # COMPLETED: 06 May 2026
-# LAST MODIFIED: 06 May 2026
-# R VERSION: 4.4.3
+# LAST MODIFIED: 12 Nov 2026
+# R VERSION: 4.5.2
 
 # ______________________________________________________________________________
 # 1. Load packages ----
@@ -649,13 +649,8 @@ ggplot(pppval.session) +
   
   geom_histogram(aes(x = p),
                  color = "white",
-                 fill = "aquamarine4",
+                 fill = "#CC0033",
                  bins = 20) +
-  
-  # vlines
-  geom_vline(xintercept = c(0.1, 0.9),
-             linetype = "dashed",
-             color = "gray25") +
   
   theme(panel.grid = element_blank(),
         axis.text = element_text(color = "black"),
@@ -665,7 +660,8 @@ ggplot(pppval.session) +
   xlab("Proportion simulated > observed discrepancy") +
   
   scale_x_continuous(breaks = c(0.1, 0.5, 0.9)) +
-  coord_cartesian(ylim = c(0.39, 8))
+  scale_y_continuous(breaks = c(2, 4, 6, 8, 10)) +
+  coord_cartesian(expand = F)
 
 # 589 x 251
 
