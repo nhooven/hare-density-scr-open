@@ -4,7 +4,7 @@
 # EMAIL: nathan.d.hooven@gmail.com
 # BEGAN: 27 Apr 2026
 # COMPLETED: 27 Apr 2026
-# LAST MODIFIED: 09 Nov 2026
+# LAST MODIFIED: 13 Nov 2026
 # R VERSION: 4.5.2
 
 # ______________________________________________________________________________
@@ -232,6 +232,7 @@ plot.df.D <- plot.df %>% filter(param == "D")
 #_______________________________________________________________________________
 
 # 3 x 4 - gridded facets, points and CIs, connecting lines
+# life zone colors
 ggplot(data = plot.df.D) +
   
   theme_bw() +
@@ -293,8 +294,71 @@ ggplot(data = plot.df.D) +
   # color
   scale_color_manual(values = c("#003300", "#669900"))
 
+# 3 x 4 - gridded facets, points and CIs, connecting lines
+# treatment colors, correct occasions
+ggplot(data = plot.df.D) +
+  
+  theme_bw() +
+  
+  facet_grid(trt ~ clust) +
+  
+  # line
+  geom_line(aes(x = year,
+                y = med,
+                color = trt),
+            linewidth = 0.8) +
+  
+  # 90% CI
+  geom_errorbar(aes(x = year,
+                    ymin = l90,
+                    ymax = u90,
+                    color = trt),
+                width = 0,
+                linewidth = 1.25,
+                alpha = 0.45) +
+  
+  # median
+  geom_point(aes(x = year,
+                 y = med,
+                 color = trt),
+             shape = 21,
+             size = 1.25,
+             stroke = 0.8,
+             fill = "white") +
+  
+  # theme
+  theme(panel.grid = element_blank(),
+        axis.text = element_text(color = "black"),
+        axis.title.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.text.x = element_text(size = 9),
+        strip.text = element_text(hjust = 0),
+        strip.background = element_rect(fill = "gray90",
+                                        linetype = "blank"),
+        legend.position = "none") +
+  
+  # axis title
+  ylab("Density (hares/ha)") +
+  
+  # coordinates
+  # let's add some padding on either side
+  coord_cartesian(xlim = c(0.75, 4.25)) +
+  
+  # y axis
+  scale_y_continuous(breaks = c(0.5, 1.5, 2.5, 3.5)) +
+  
+  # x labels
+  scale_x_continuous(breaks = seq(1, 4, 1),
+                     labels = c(expression(t[1]),
+                                expression(t[2]),
+                                expression(t[3]),
+                                expression(t[4]))) +
+  
+  # color
+  scale_color_manual(values = c("gray45", "#CC0033", "#CC0033"))
+
 # 493 x 403
-ggsave("final_plots/Figure_3.pdf",
+ggsave("final_plots/Figure_4.pdf",
        device = "pdf",
        width = 515,
        height = 403,
